@@ -1,0 +1,312 @@
+name: blog-dev
+
+services:
+  mysql:
+    image: mysql:8.0.37
+    container_name: blog-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --sql_mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --max_connections=500
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: ${TZ}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - blog_net
+
+  redis:
+    image: redis:7.2.5
+    container_name: blog-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      TZ: ${TZ}
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - blog_net
+
+  minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    container_name: blog-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      TZ: ${TZ}
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - blog_net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: blog-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      TZ: ${TZ}
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+    networks:
+      - blog_net
+    profiles: ["pro"]
+
+  zookeeper:
+    image: "${ZOOKEEPER_IMAGE:-bitnamilegacy/zookeeper:3.9}"
+    container_name: blog-zookeeper
+    restart: unless-stopped
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+      TZ: ${TZ}
+    ports:
+      - "${ZOOKEEPER_PORT}:2181"
+    networks:
+      - blog_net
+    profiles: ["stream"]
+
+  kafka:
+    image: "${KAFKA_IMAGE:-bitnamilegacy/kafka:3.7.0}"
+    container_name: blog-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_ENABLE_KRAFT: "no"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      TZ: ${TZ}
+    ports:
+      - "${KAFKA_PORT}:9092"
+    networks:
+      - blog_net
+    profiles: ["stream"]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: blog-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=${TZ}
+    ports:
+      - "${ELASTICSEARCH_PORT}:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 15s
+      timeout: 8s
+      retries: 20
+    networks:
+      - blog_net
+    profiles: ["search"]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.3
+    container_name: blog-kibana
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      TZ: ${TZ}
+    ports:
+      - "${KIBANA_PORT}:5601"
+    networks:
+      - blog_net
+    profiles: ["search"]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.59
+    container_name: blog-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      TZ: ${TZ}
+    ports:
+      - "${JAEGER_UI_PORT}:16686"
+      - "${JAEGER_OTLP_GRPC_PORT}:4317"
+      - "${JAEGER_OTLP_HTTP_PORT}:4318"
+    networks:
+      - blog_net
+    profiles: ["observe"]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: blog-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - blog_net
+    profiles: ["observe"]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: blog-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      TZ: ${TZ}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - blog_net
+    profiles: ["observe"]
+
+  oj-api:
+    image: golang:1.23-bookworm
+    container_name: oj-api-dev
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -lc "/usr/local/go/bin/go run ./cmd/server"
+    volumes:
+      - ./kkg-oj-backend:/app
+    environment:
+      SERVER_PORT: "8121"
+      MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(host.docker.internal:${MYSQL_PORT})/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
+      REDIS_ADDR: "host.docker.internal:${REDIS_PORT}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_DB: "1"
+      JWT_SECRET: "${JWT_SECRET}"
+      BLOG_BASE_URL: "http://host.docker.internal:8080"
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@blog-rabbitmq:5672/"
+      RABBITMQ_JUDGE_QUEUE: "oj.judge"
+      JUDGE_SANDBOX_TYPE: "remote"
+      JUDGE_SANDBOX_URL: "http://oj-sandbox:8082/executeCode"
+      JUDGE_AUTH_SECRET: "secretKey"
+    depends_on:
+      - oj-sandbox
+    ports:
+      - "8121:8121"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - blog_net
+    profiles: ["oj"]
+
+  oj-sandbox:
+    build:
+      context: ./kkg-sandbox
+      dockerfile: Dockerfile
+    image: kkg-oj-sandbox:dev
+    container_name: oj-sandbox
+    restart: unless-stopped
+    working_dir: /app
+    user: "0:0"
+    read_only: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /private/tmp/kkg-sandbox:/private/tmp/kkg-sandbox
+    environment:
+      SANDBOX_ADDR: ":8082"
+      SANDBOX_AUTH_SECRET: "secretKey"
+      SANDBOX_GO_MODE: "container"
+      SANDBOX_RUNNER_IMAGE: "golang:1.23-bookworm"
+      SANDBOX_RUNNER_TIMEOUT_SEC: "12"
+      SANDBOX_MAX_OUTPUT_BYTES: "1048576"
+      SANDBOX_WORKDIR: "/private/tmp/kkg-sandbox"
+      GOCACHE: "/tmp/go-cache"
+      GOTMPDIR: "/tmp"
+      TMPDIR: "/tmp"
+    tmpfs:
+      - /tmp:exec,size=256m,mode=1777
+    ports:
+      - "8082:8082"
+    networks:
+      - blog_net
+    profiles: ["oj"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: kkg-gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/kkg.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - blog_net
+    profiles: ["gateway"]
+
+networks:
+  blog_net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+  es_data:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,15 @@
+# 本地私有覆盖配置（不要提交到 git）
+# 使用方式：复制为 config.local.yaml 后填写真实值
+
+rabbitmq:
+  url: "amqp://<user>:<password>@127.0.0.1:5672/"
+
+blog:
+  agent_password: "<blog-agent-password>"
+  internal_auth_token: "<blog-internal-auth-token>"
+
+agent:
+  enabled: true
+  api_key: "<deepseek-api-key>"
+
+jwt_secret: "<strong-jwt-secret>"
