@@ -1,21 +1,25 @@
-# KKG 开发快速引导
+# KKG 项目快速启动
 
-本文件只保留“正确配置 + 正确启动”的最短路径。  
-完整说明请看 [docs/setup-guide.md](./docs/setup-guide.md)。
+面向本地开发，最短路径：配置 -> 启动 -> 验证。
 
-## 1) 先配置
+## 0. 环境要求
 
-1. 复制配置模板：
+- Docker Desktop（已启动）
+- `make`
+- 可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8121`、`8082`、`9000`、`9001`
+
+## 1. 配置
+
 ```bash
 cp .env.example .env
 cp kkg-oj-backend/config.local.example.yaml kkg-oj-backend/config.local.yaml
 ```
 
-2. 必填项位置：
-- 根目录 `.env`：`JWT_SECRET`、`MYSQL_PASSWORD`、`REDIS_PASSWORD`、`RABBITMQ_PASSWORD`、`MINIO_*`、`SUPER_ADMIN_PASSWORD`
-- `kkg-oj-backend/config.local.yaml`：`rabbitmq.url`、`blog.agent_password`、`jwt_secret`、（可选）`agent.api_key`
+必填位置：
+- `.env`：`JWT_SECRET`、`MYSQL_PASSWORD`、`REDIS_PASSWORD`、`RABBITMQ_PASSWORD`、`MINIO_*`、`SUPER_ADMIN_PASSWORD`
+- `kkg-oj-backend/config.local.yaml`：`rabbitmq.url`、`blog.agent_password`、`jwt_secret`（可选：`agent.api_key`）
 
-## 2) 再启动（按顺序）
+## 2. 启动
 
 ```bash
 make dev-core
@@ -26,23 +30,19 @@ make web-dev
 make gateway-run
 ```
 
-## 3) 验证
+## 3. 验证
 
-- 博客后端: `http://127.0.0.1:8080/health`
-- 前端: `http://127.0.0.1:3001`
-- 网关: `http://127.0.0.1`
+- 前端：`http://127.0.0.1:3001`
+- 网关：`http://127.0.0.1`
+- 博客后端健康检查：`http://127.0.0.1:8080/health`
 
-## 4) 常见错误
+## 4. 故障排查
 
-1. `invalid config: JWT_SECRET is required`  
-`.env` 还在用占位值，改完重启 `make api-dev`。
+- `invalid config: JWT_SECRET is required`：`.env` 仍是占位值，修改后重启 `make api-dev`
+- `dial tcp 127.0.0.1:3307`：MySQL 未就绪，执行 `make dev-core` 并检查 `make ps`
 
-2. `dial tcp 127.0.0.1:3307 ...`  
-MySQL 未就绪，先执行 `make dev-core` 并检查 `make ps`。
+## 5. 详细文档
 
-## 5) 文档入口
-
-- 一键上手: [docs/setup-guide.md](./docs/setup-guide.md)
-- 架构: [docs/architecture.md](./docs/architecture.md)
-- Git 规范: [docs/git-guide.md](./docs/git-guide.md)
-- 模块文档: [docs/modules](./docs/modules)
+- 使用指南：[docs/setup-guide.md](./docs/setup-guide.md)
+- 架构说明：[docs/architecture.md](./docs/architecture.md)
+- Git 规范：[docs/git-guide.md](./docs/git-guide.md)

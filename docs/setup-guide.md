@@ -1,6 +1,6 @@
-# 新环境拉取即用指南
+# 项目使用指南
 
-适用目标：新同事拉取仓库后，按本文完成配置并在本机跑通博客 + OJ。
+目标：代码拉取后完成配置并运行博客 + OJ。
 
 ## 1. 前置条件
 
@@ -8,14 +8,14 @@
 2. 本机可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8121`、`8082`、`9000`、`9001`
 3. 已安装 `make`
 
-## 2. 第一步：填写根配置 `.env`
+## 2. 配置根环境变量 `.env`
 
 1. 复制模板：
 ```bash
 cp .env.example .env
 ```
 
-2. 打开根目录 `.env`，至少修改以下字段（必须改）：
+2. 打开根目录 `.env`，修改以下必填字段：
 
 - `JWT_SECRET`：博客登录签名密钥，建议 32+ 位随机字符串
 - `MYSQL_ROOT_PASSWORD`
@@ -26,9 +26,9 @@ cp .env.example .env
 - `RABBITMQ_PASSWORD`
 - `SUPER_ADMIN_PASSWORD`
 
-3. 这些字段都在文件 [`.env.example`](/Users/zhuojianshuo/GolandProjects/awesomeProject/.env.example) 里有对应占位值，直接按同名键填写即可。
+3. 字段定义见 [`.env.example`](/Users/zhuojianshuo/GolandProjects/awesomeProject/.env.example)。
 
-## 3. 第二步：填写 OJ 配置
+## 3. 配置 OJ 本地覆盖文件
 
 OJ 有两层配置：
 
@@ -51,7 +51,7 @@ cp kkg-oj-backend/config.local.example.yaml kkg-oj-backend/config.local.yaml
 
 参考模板见 [config.local.example.yaml](/Users/zhuojianshuo/GolandProjects/awesomeProject/kkg-oj-backend/config.local.example.yaml)。
 
-## 4. 第三步：启动顺序（严格按顺序）
+## 4. 启动顺序（严格按顺序）
 
 1. 启动核心中间件：
 ```bash
@@ -79,14 +79,14 @@ make web-dev
 make gateway-run
 ```
 
-## 5. 第四步：验收地址
+## 5. 验证地址
 
 1. 博客后端健康检查：`http://127.0.0.1:8080/health`
 2. OJ 后端：`http://127.0.0.1:8121`
 3. 前端：`http://127.0.0.1:3001`
 4. 网关统一入口：`http://127.0.0.1`
 
-## 6. 常见错误与处理
+## 6. 常见错误
 
 1. `invalid config: JWT_SECRET is required`  
 原因：`.env` 里还在用占位值。  
@@ -100,7 +100,7 @@ make gateway-run
 原因：`kkg-oj-backend/config.local.yaml` 缺少 `agent.api_key` 或 `blog.agent_password`。  
 处理：补齐本地配置并重启 `make oj-api-restart`。
 
-## 7. 提交前检查（避免泄露）
+## 7. 提交前检查
 
 1. 不要提交 `.env` 与 `config.local.yaml`
 2. 仅提交 `.env.example`、`config.example.yaml` 这类模板
