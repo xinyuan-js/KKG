@@ -1,5 +1,7 @@
 # KKG 项目文档索引
 项目主要是一个博客和简单oj的整合项目，支持接入api去完成题目的题解自动生成，会自动提交验证大模型的提交准确性。
+<img width="2070" height="1136" alt="image" src="https://github.com/user-attachments/assets/1cda43c4-d210-4e9f-a6f4-5641f1b82e97" />
+
 ## 1. 架构与边界
 - [系统架构](./architecture.md)
 - [Git 规范与安全基线](./git-guide.md)
