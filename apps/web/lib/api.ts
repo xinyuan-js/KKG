@@ -5,6 +5,39 @@ function getAPIBase() {
   return typeof window === "undefined" ? API_BASE_SERVER : API_BASE_CLIENT;
 }
 
+async function refreshAuthSession() {
+  const resp = await fetch(`${getAPIBase()}/api/v1/auth/refresh`, {
+    method: "POST",
+    credentials: "include"
+  });
+  return resp.ok;
+}
+
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const withCredentials: RequestInit = {
+    ...init,
+    credentials: "include",
+    headers: withoutAuthHeader(init?.headers)
+  };
+  const resp = await fetch(input, withCredentials);
+  const url = String(input);
+  if (resp.status !== 401 || url.includes("/api/v1/auth/")) {
+    return resp;
+  }
+  if (!(await refreshAuthSession())) {
+    return resp;
+  }
+  return fetch(input, withCredentials);
+}
+
+function withoutAuthHeader(headers?: HeadersInit): HeadersInit | undefined {
+  if (!headers) return undefined;
+  const next = new Headers(headers);
+  next.delete("Authorization");
+  next.delete("authorization");
+  return next;
+}
+
 type Envelope<T> = {
   code: number;
   message: string;
@@ -49,7 +82,7 @@ export type PostEngagement = {
 };
 
 export type LoginPayload = {
-  access_token: string;
+  access_token?: string;
   user: {
     id: number;
     username: string;
@@ -169,6 +202,7 @@ export type SearchPostItem = {
   title: string;
   summary: string;
   status: string;
+  tags?: string[];
   score?: number;
 };
 
@@ -206,7 +240,7 @@ export type AdminAuditItem = {
 };
 
 export async function getPublishedPosts(): Promise<Post[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts`, { cache: "no-store" });
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts`, { cache: "no-store" });
   if (!resp.ok) {
     throw new Error(`fetch posts failed: ${resp.status}`);
   }
@@ -217,7 +251,7 @@ export async function getPublishedPosts(): Promise<Post[]> {
 export async function getFeed(type: "hot" | "latest" | "recommend", token?: string): Promise<Post[]> {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(`${getAPIBase()}/api/v1/feed?type=${type}&limit=30`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/feed?type=${type}&limit=30`, {
     method: "GET",
     headers,
     cache: "no-store"
@@ -232,7 +266,7 @@ export async function getFeed(type: "hot" | "latest" | "recommend", token?: stri
 export async function getPostEngagement(postID: number, token?: string): Promise<PostEngagement> {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/engagement`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/engagement`, {
     method: "GET",
     headers,
     cache: "no-store"
@@ -245,7 +279,7 @@ export async function getPostEngagement(postID: number, token?: string): Promise
 }
 
 export async function togglePostLike(postID: number, token: string): Promise<PostEngagement> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/like`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/like`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -257,7 +291,7 @@ export async function togglePostLike(postID: number, token: string): Promise<Pos
 }
 
 export async function togglePostFavorite(postID: number, token: string): Promise<PostEngagement> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/favorite`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/favorite`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -269,7 +303,7 @@ export async function togglePostFavorite(postID: number, token: string): Promise
 }
 
 export async function getPostRankings(limit = 20): Promise<Post[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/rankings/posts?limit=${limit}&period=all`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/rankings/posts?limit=${limit}&period=all`, {
     method: "GET",
     cache: "no-store"
   });
@@ -281,7 +315,7 @@ export async function getPostRankings(limit = 20): Promise<Post[]> {
 }
 
 export async function getPostRankingsByPeriod(period: "24h" | "7d" | "30d" | "all", limit = 20): Promise<Post[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/rankings/posts?limit=${limit}&period=${period}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/rankings/posts?limit=${limit}&period=${period}`, {
     method: "GET",
     cache: "no-store"
   });
@@ -293,7 +327,7 @@ export async function getPostRankingsByPeriod(period: "24h" | "7d" | "30d" | "al
 }
 
 export async function getMyFavorites(token: string): Promise<Post[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/favorites?limit=50`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/favorites?limit=50`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -320,7 +354,7 @@ export async function adminListUsers(input: {
   const q = encodeURIComponent(input.q || "");
   const role = encodeURIComponent(input.role || "");
   const status = encodeURIComponent(input.status || "");
-  const resp = await fetch(
+  const resp = await apiFetch(
     `${getAPIBase()}/api/v1/admin/users?page=${page}&page_size=${pageSize}&q=${q}&role=${role}&status=${status}`,
     {
       method: "GET",
@@ -341,7 +375,7 @@ export async function adminUpdateUserRole(input: {
   role: "user" | "admin" | "super_admin";
   status: -1 | 0 | 1;
 }) {
-  const resp = await fetch(`${getAPIBase()}/api/v1/admin/users/role`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/admin/users/role`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -367,7 +401,7 @@ export async function adminListPosts(input: {
   const pageSize = input.page_size || 20;
   const q = encodeURIComponent(input.q || "");
   const status = encodeURIComponent(input.status || "");
-  const resp = await fetch(
+  const resp = await apiFetch(
     `${getAPIBase()}/api/v1/admin/posts?page=${page}&page_size=${pageSize}&q=${q}&status=${status}`,
     {
       method: "GET",
@@ -383,7 +417,7 @@ export async function adminListPosts(input: {
 }
 
 export async function adminDeleteUser(input: { token: string; id: number }) {
-  const resp = await fetch(`${getAPIBase()}/api/v1/admin/users/${input.id}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/admin/users/${input.id}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${input.token}` }
   });
@@ -401,7 +435,7 @@ export async function adminCreateAudit(input: {
   target_id: number;
   detail?: string;
 }) {
-  const resp = await fetch(`${getAPIBase()}/api/v1/admin/audits`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/admin/audits`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -425,7 +459,7 @@ export async function adminListAudits(input: {
   const page = input.page || 1;
   const pageSize = input.page_size || 20;
   const action = encodeURIComponent(input.action || "");
-  const resp = await fetch(
+  const resp = await apiFetch(
     `${getAPIBase()}/api/v1/admin/audits?page=${page}&page_size=${pageSize}&action=${action}`,
     {
       method: "GET",
@@ -441,7 +475,7 @@ export async function adminListAudits(input: {
 }
 
 export async function getPublishedPostDetail(postID: number): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
     method: "GET",
     cache: "no-store"
   });
@@ -453,7 +487,7 @@ export async function getPublishedPostDetail(postID: number): Promise<Post> {
 }
 
 export async function getPostComments(postID: number): Promise<Comment[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/comments`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/comments`, {
     method: "GET",
     cache: "no-store"
   });
@@ -469,7 +503,7 @@ export async function createPostComment(
   postID: number,
   input: { content: string; parent_id?: number }
 ): Promise<Comment> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/comments`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/comments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -488,7 +522,7 @@ export async function createPostComment(
 }
 
 export async function getMyNotifications(token: string, limit = 50): Promise<NotificationListPayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/notifications?limit=${limit}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/notifications?limit=${limit}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -503,7 +537,7 @@ export async function getMyNotifications(token: string, limit = 50): Promise<Not
 }
 
 export async function markMyNotificationRead(token: string, id: number): Promise<void> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/notifications/${id}/read`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/notifications/${id}/read`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`
@@ -516,7 +550,7 @@ export async function markMyNotificationRead(token: string, id: number): Promise
 }
 
 export async function getPublicUserPage(userID: number): Promise<PublicUserPagePayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/users/${userID}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/users/${userID}`, {
     method: "GET",
     cache: "no-store"
   });
@@ -532,7 +566,7 @@ export async function searchTweets(input: { q: string; from?: number; size?: num
   params.set("q", input.q);
   params.set("from", String(input.from ?? 0));
   params.set("size", String(input.size ?? 20));
-  const resp = await fetch(`${getAPIBase()}/api/v1/tweets/search?${params.toString()}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/tweets/search?${params.toString()}`, {
     method: "GET",
     cache: "no-store"
   });
@@ -557,7 +591,7 @@ export async function searchAll(input: {
   if (input.token) {
     headers.Authorization = `Bearer ${input.token}`;
   }
-  const resp = await fetch(`${getAPIBase()}/api/v1/search?${params.toString()}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/search?${params.toString()}`, {
     method: "GET",
     headers,
     cache: "no-store"
@@ -581,7 +615,7 @@ export async function searchSuggest(input: {
   params.set("limit", String(input.limit ?? 5));
   const headers: HeadersInit = {};
   if (input.token) headers.Authorization = `Bearer ${input.token}`;
-  const resp = await fetch(`${getAPIBase()}/api/v1/search/suggest?${params.toString()}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/search/suggest?${params.toString()}`, {
     method: "GET",
     headers,
     cache: "no-store"
@@ -594,7 +628,7 @@ export async function searchSuggest(input: {
 }
 
 export async function login(account: string, password: string): Promise<LoginPayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/auth/login`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ account, password })
@@ -607,12 +641,24 @@ export async function login(account: string, password: string): Promise<LoginPay
   return json.data;
 }
 
+export async function getCurrentUser(): Promise<UserProfilePayload> {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/auth/me`, {
+    method: "GET",
+    cache: "no-store"
+  });
+  const json = (await resp.json()) as Envelope<UserProfilePayload>;
+  if (!resp.ok || json.code !== 0) {
+    throw new Error(json.message || "get current user failed");
+  }
+  return json.data;
+}
+
 export async function register(input: {
   username: string;
   email: string;
   password: string;
 }): Promise<RegisterPayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/auth/register`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)
@@ -633,7 +679,7 @@ export async function createDraft(input: {
   draft_note?: string;
   raw_content: string;
 }): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -650,7 +696,7 @@ export async function createDraft(input: {
 }
 
 export async function getMyPosts(token: string): Promise<Post[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/posts`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/posts`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -665,7 +711,7 @@ export async function getMyPosts(token: string): Promise<Post[]> {
 }
 
 export async function getMyProfile(token: string): Promise<UserProfilePayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/profile`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/profile`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store"
@@ -681,7 +727,7 @@ export async function updateMyProfile(
   token: string,
   input: { username: string; email: string; avatar_url?: string }
 ): Promise<UserProfilePayload> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/profile`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/profile`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -699,7 +745,7 @@ export async function updateMyProfile(
 export async function uploadImage(token: string, file: File): Promise<string> {
   const form = new FormData();
   form.append("file", file);
-  const resp = await fetch(`${getAPIBase()}/api/v1/uploads/image`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/uploads/image`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`
@@ -717,7 +763,7 @@ export async function changeMyPassword(
   token: string,
   input: { old_password: string; new_password: string }
 ): Promise<void> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/password`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/password`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -732,7 +778,7 @@ export async function changeMyPassword(
 }
 
 export async function publishPost(token: string, postID: number): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/publish`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/publish`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`
@@ -746,7 +792,7 @@ export async function publishPost(token: string, postID: number): Promise<Post> 
 }
 
 export async function unpublishPost(token: string, postID: number): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/unpublish`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/unpublish`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`
@@ -765,7 +811,7 @@ export async function createPostDraft(
   fromVersion?: number,
   draftNote?: string
 ): Promise<PostVersion> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -781,7 +827,7 @@ export async function createPostDraft(
 }
 
 export async function getPostDetail(postID: number, token: string): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -796,7 +842,7 @@ export async function getPostDetail(postID: number, token: string): Promise<Post
 }
 
 export async function getMyPostDetail(postID: number, token: string): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/me/posts/${postID}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/me/posts/${postID}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -815,7 +861,7 @@ export async function updatePostMeta(
   postID: number,
   input: { title: string; summary: string; tags?: string[] }
 ): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/meta`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/meta`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -837,7 +883,7 @@ export async function saveDraft(input: {
   summary: string;
   raw_content: string;
 }): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${input.postID}/draft`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${input.postID}/draft`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -857,7 +903,7 @@ export async function saveDraft(input: {
 }
 
 export async function getPostDrafts(token: string, postID: number): Promise<PostVersion[]> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -872,7 +918,7 @@ export async function getPostDrafts(token: string, postID: number): Promise<Post
 }
 
 export async function getPostDraft(token: string, postID: number, version: number): Promise<PostVersion> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`
@@ -895,7 +941,7 @@ export async function savePostDraft(input: {
   draft_note?: string;
   raw_content: string;
 }): Promise<PostVersion> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${input.postID}/drafts/${input.version}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${input.postID}/drafts/${input.version}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -916,7 +962,7 @@ export async function savePostDraft(input: {
 }
 
 export async function publishPostDraft(token: string, postID: number, version: number): Promise<Post> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}/publish`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}/publish`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`
@@ -930,7 +976,7 @@ export async function publishPostDraft(token: string, postID: number, version: n
 }
 
 export async function deletePostDraft(token: string, postID: number, version: number): Promise<void> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`
@@ -948,7 +994,7 @@ export const rollbackPostVersion = publishPostDraft;
 export const deletePostVersion = deletePostDraft;
 
 export async function deletePost(token: string, postID: number): Promise<void> {
-  const resp = await fetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`

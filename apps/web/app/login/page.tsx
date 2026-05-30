@@ -1,10 +1,11 @@
 "use client";
 
 import { Nav } from "@/components/nav";
-import { getAccessToken } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/api";
+import { setAuthSession } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
 import { emitTopNotice } from "@/lib/notice";
-import { syncDualLogin } from "@/lib/session-bridge";
+import { loginWithPassword } from "@/lib/session-bridge";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,9 +24,12 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    if (getAccessToken()) {
-      router.replace(getRedirectTarget());
-    }
+    void getCurrentUser()
+      .then((user) => {
+        setAuthSession(user);
+        router.replace(getRedirectTarget());
+      })
+      .catch(() => {});
   }, [router]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -34,7 +38,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await syncDualLogin(account, password);
+      await loginWithPassword(account, password);
       emitTopNotice("登录成功，已建立登录态", "success");
       router.replace(getRedirectTarget());
     } catch (err) {

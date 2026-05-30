@@ -1,9 +1,9 @@
 "use client";
 
-import { changeMyPassword, getMyProfile, updateMyProfile, uploadImage } from "@/lib/api";
+import { changeMyPassword, getCurrentUser, updateMyProfile, uploadImage } from "@/lib/api";
 import { getAccessToken, getUserProfile, setUserProfile } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
-import { syncDualLogout } from "@/lib/session-bridge";
+import { logoutAuthSession } from "@/lib/session-bridge";
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,25 +38,21 @@ export default function MePage() {
 
   useEffect(() => {
     const p = getUserProfile();
-    if (!p) {
-      router.replace("/login?redirect=/me");
-      return;
+    if (p) {
+      setProfile(p);
+      setUsername(p.username || "");
+      setEmail(p.email || "");
+      setAvatarURL(p.avatar_url || "");
+      setInitialUsername(p.username || "");
+      setInitialEmail(p.email || "");
+      setInitialAvatarURL(p.avatar_url || "");
     }
-    setProfile(p);
-    setUsername(p.username || "");
-    setEmail(p.email || "");
-    setAvatarURL(p.avatar_url || "");
-    setInitialUsername(p.username || "");
-    setInitialEmail(p.email || "");
-    setInitialAvatarURL(p.avatar_url || "");
     void loadProfile();
   }, [router]);
 
   async function loadProfile() {
     try {
-      const token = getAccessToken();
-      if (!token) return;
-      const p = await getMyProfile(token);
+      const p = await getCurrentUser();
       setProfile(p);
       setUsername(p.username || "");
       setEmail(p.email || "");
@@ -66,13 +62,15 @@ export default function MePage() {
       setInitialAvatarURL(p.avatar_url || "");
       setUserProfile(p);
     } catch {
-      // keep local profile as fallback
+      if (!getUserProfile()) {
+        router.replace("/login?redirect=/me");
+      }
     }
   }
 
   async function logout() {
     if (!window.confirm("确认退出当前登录吗？")) return;
-    await syncDualLogout();
+    await logoutAuthSession();
     router.push("/login");
   }
 

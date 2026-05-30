@@ -1,12 +1,11 @@
 "use client";
 
 import { Nav } from "@/components/nav";
-import { register } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { getCurrentUser, register } from "@/lib/api";
+import { setAuthSession } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
 import { emitTopNotice } from "@/lib/notice";
-import { ojRegister } from "@/lib/oj-api";
-import { syncDualLogin } from "@/lib/session-bridge";
+import { loginWithPassword } from "@/lib/session-bridge";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,10 +18,19 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function getRedirectTarget() {
+    if (typeof window === "undefined") return "/me";
+    const query = new URLSearchParams(window.location.search);
+    return query.get("redirect") || "/me";
+  }
+
   useEffect(() => {
-    if (getAccessToken()) {
-      router.replace("/me");
-    }
+    void getCurrentUser()
+      .then((user) => {
+        setAuthSession(user);
+        router.replace(getRedirectTarget());
+      })
+      .catch(() => {});
   }, [router]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -31,14 +39,9 @@ export default function RegisterPage() {
     setError("");
     try {
       await register({ username, email, password });
-      try {
-        await ojRegister(username, password, password);
-      } catch {
-        // ignore existing-account or transient errors, login bridge below handles final state
-      }
-      await syncDualLogin(username, password);
+      await loginWithPassword(username, password);
       emitTopNotice("注册并登录成功", "success");
-      router.replace("/me");
+      router.replace(getRedirectTarget());
     } catch (err) {
       setError(toZhError(err, "注册失败"));
     } finally {

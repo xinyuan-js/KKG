@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AUTH_CHANGED_EVENT, getAccessToken } from "@/lib/auth";
+import { AUTH_CHANGED_EVENT, getUserProfile } from "@/lib/auth";
 import { ojGetLoginUser } from "@/lib/oj-api";
 import { emitTopNotice } from "@/lib/notice";
 
 const OJ_EVENT_BASE = process.env.NEXT_PUBLIC_OJ_API_BASE || "/oj-api";
 
 export function OJSubmitNotifier() {
-  const [token, setToken] = useState("");
+  const [enabled, setEnabled] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const reconnectRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const sync = () => setToken(getAccessToken() || "");
+    const sync = () => setEnabled(!!getUserProfile());
     sync();
     window.addEventListener(AUTH_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -24,13 +24,13 @@ export function OJSubmitNotifier() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!enabled) return;
     let closed = false;
     let es: EventSource | null = null;
 
     const connect = async () => {
       try {
-        // 先用带 Authorization 的请求把 OJ session 建立出来，SSE 再走 cookie。
+        // 先确认 OJ 可基于统一 auth cookie 建立用户上下文，SSE 再复用 cookie。
         await ojGetLoginUser();
       } catch {
         // ignore; below EventSource may still succeed if session already exists
@@ -71,7 +71,7 @@ export function OJSubmitNotifier() {
       if (reconnectRef.current) window.clearTimeout(reconnectRef.current);
       es?.close();
     };
-  }, [token]);
+  }, [enabled]);
 
   useEffect(() => () => {
     if (reconnectRef.current) window.clearTimeout(reconnectRef.current);

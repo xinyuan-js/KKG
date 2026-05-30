@@ -2,7 +2,7 @@
 
 import { Nav } from "@/components/nav";
 import { MarkdownEditor } from "@/components/markdown-editor";
-import { createDraft, publishPost } from "@/lib/api";
+import { createDraft, getCurrentUser, publishPost } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
 import { ojBindQuestionSolution } from "@/lib/oj-api";
@@ -32,12 +32,9 @@ export default function EditorPage() {
   }, [useMdEditor]);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      router.replace(`/login?redirect=${encodeURIComponent(pathname || "/write")}`);
-      return;
-    }
-    setChecking(false);
+    void getCurrentUser()
+      .then(() => setChecking(false))
+      .catch(() => router.replace(`/login?redirect=${encodeURIComponent(pathname || "/write")}`));
   }, [router, pathname]);
 
   useEffect(() => {
@@ -60,7 +57,7 @@ export default function EditorPage() {
     try {
       const token = getAccessToken();
       if (!token) {
-        throw new Error("未找到 access_token，请先登录");
+        throw new Error("请先登录");
       }
       if (hasInlineBase64Image(rawContent)) {
         throw new Error("检测到图片仍是 base64，请等待上传完成后再保存");

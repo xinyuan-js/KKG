@@ -2,6 +2,8 @@ const OJ_API_BASE =
   (typeof window === "undefined"
     ? process.env.OJ_API_BASE_SERVER || process.env.NEXT_PUBLIC_OJ_API_BASE
     : process.env.NEXT_PUBLIC_OJ_API_BASE) || "/oj-api";
+const AUTH_API_BASE =
+  (typeof window === "undefined" ? process.env.API_BASE_SERVER : process.env.NEXT_PUBLIC_API_BASE) || "/blog-api";
 
 type Envelope<T> = {
   code: number;
@@ -120,20 +122,27 @@ export type OJFirstACRankItem = {
 };
 
 async function ojFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const token =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem("access_token") || ""
-      : "";
-  const resp = await fetch(`${OJ_API_BASE}${path}`, {
+  const doFetch = () => fetch(`${OJ_API_BASE}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {})
     }
   });
-  const json = (await resp.json()) as Envelope<T>;
+
+  let resp = await doFetch();
+  let json = (await resp.json()) as Envelope<T>;
+  if (resp.status === 401 || json.code === 40100) {
+    const refreshed = await fetch(`${AUTH_API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include"
+    });
+    if (refreshed.ok) {
+      resp = await doFetch();
+      json = (await resp.json()) as Envelope<T>;
+    }
+  }
   if (!resp.ok || json.code !== 0) {
     throw new OJApiError(json.code ?? resp.status, json.message || `request failed: ${resp.status}`);
   }
@@ -142,20 +151,6 @@ async function ojFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function ojGetLoginUser() {
   return ojFetch<OJUserVO>("/api/user/get/login", { method: "GET" });
-}
-
-export async function ojLogin(userAccount: string, userPassword: string) {
-  return ojFetch<OJUserVO>("/api/user/login", {
-    method: "POST",
-    body: JSON.stringify({ userAccount, userPassword })
-  });
-}
-
-export async function ojRegister(userAccount: string, userPassword: string, checkPassword: string) {
-  return ojFetch<number>("/api/user/register", {
-    method: "POST",
-    body: JSON.stringify({ userAccount, userPassword, checkPassword })
-  });
 }
 
 export async function ojLogout() {
@@ -173,12 +168,23 @@ export async function ojUploadAvatar(file: File) {
   const form = new FormData();
   form.append("biz", "user_avatar");
   form.append("file", file);
-  const resp = await fetch(`${OJ_API_BASE}/api/file/upload`, {
+  const doUpload = () => fetch(`${OJ_API_BASE}/api/file/upload`, {
     method: "POST",
     credentials: "include",
     body: form
   });
-  const json = (await resp.json()) as Envelope<string>;
+  let resp = await doUpload();
+  let json = (await resp.json()) as Envelope<string>;
+  if (resp.status === 401 || json.code === 40100) {
+    const refreshed = await fetch(`${AUTH_API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include"
+    });
+    if (refreshed.ok) {
+      resp = await doUpload();
+      json = (await resp.json()) as Envelope<string>;
+    }
+  }
   if (!resp.ok || json.code !== 0) {
     throw new Error(json.message || "upload failed");
   }

@@ -22,7 +22,7 @@ export default function OJMyQuestionsPage() {
       setError("");
     } catch (err) {
       if (isOJNotLoginError(err)) {
-        router.replace("/oj/login");
+        router.replace("/login?redirect=/oj/questions/my");
         return;
       }
       setError(toZhError(err, "加载我的题目失败"));

@@ -8,16 +8,22 @@ import (
 )
 
 type Claims struct {
-	UserID uint64 `json:"user_id"`
-	Role   string `json:"role"`
+	UserID    uint64 `json:"user_id"`
+	Role      string `json:"role"`
+	TokenType string `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
 
 func GenerateJWT(userID uint64, role string, secret string, ttl time.Duration) (string, error) {
+	return GenerateTypedJWT(userID, role, "access", secret, ttl)
+}
+
+func GenerateTypedJWT(userID uint64, role string, tokenType string, secret string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:    userID,
+		Role:      role,
+		TokenType: tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),

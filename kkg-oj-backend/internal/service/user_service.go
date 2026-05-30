@@ -133,10 +133,21 @@ func (s *UserService) EnsureFromSharedUserID(sharedID int64) (*entity.User, erro
 	if err != nil {
 		return nil, err
 	}
-	// 同步主账号侧角色，确保超级管理员/管理员权限实时生效。
+	updates := map[string]interface{}{}
+	if shared.Username != "" && u.UserName != shared.Username {
+		u.UserName = shared.Username
+		updates["userName"] = shared.Username
+	}
+	if u.UserAvatar != shared.AvatarURL {
+		u.UserAvatar = shared.AvatarURL
+		updates["userAvatar"] = shared.AvatarURL
+	}
 	if shared.Role != "" && u.UserRole != shared.Role {
 		u.UserRole = shared.Role
-		_ = s.db.Model(&entity.User{}).Where("id = ?", u.ID).Update("userRole", shared.Role).Error
+		updates["userRole"] = shared.Role
+	}
+	if len(updates) > 0 {
+		_ = s.db.Model(&entity.User{}).Where("id = ?", u.ID).Updates(updates).Error
 	}
 	return &u, nil
 }

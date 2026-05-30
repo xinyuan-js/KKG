@@ -16,6 +16,16 @@ type AuthService struct {
 	jwtSecret string
 }
 
+type TokenPair struct {
+	AccessToken  string
+	RefreshToken string
+}
+
+const (
+	AccessTokenTTL  = 30 * time.Minute
+	RefreshTokenTTL = 7 * 24 * time.Hour
+)
+
 func NewAuthService(users *repository.UserRepository, jwtSecret string) *AuthService {
 	return &AuthService{users: users, jwtSecret: jwtSecret}
 }
@@ -56,31 +66,65 @@ func (s *AuthService) Register(username string, email string, password string) (
 	return user, nil
 }
 
-func (s *AuthService) Login(account string, password string) (string, *model.User, error) {
+func (s *AuthService) Login(account string, password string) (*TokenPair, *model.User, error) {
 	user, err := s.users.GetByUsernameOrEmail(strings.TrimSpace(account))
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	if user == nil {
-		return "", nil, errors.New("invalid credentials")
+		return nil, nil, errors.New("invalid credentials")
 	}
 	if user.Status != 1 {
 		if user.Status == 0 {
-			return "", nil, errors.New("账号已被禁用，请联系管理员")
+			return nil, nil, errors.New("账号已被禁用，请联系管理员")
 		}
-		return "", nil, errors.New("账号不存在或已被隐藏，请联系管理员")
+		return nil, nil, errors.New("账号不存在或已被隐藏，请联系管理员")
 	}
 
 	if !security.CheckPassword(user.PasswordHash, password) {
-		return "", nil, errors.New("invalid credentials")
+		return nil, nil, errors.New("invalid credentials")
 	}
 
-	token, err := security.GenerateJWT(user.ID, user.Role, s.jwtSecret, 24*time.Hour)
+	tokens, err := s.issueTokenPair(user)
 	if err != nil {
-		return "", nil, fmt.Errorf("generate jwt failed: %w", err)
+		return nil, nil, err
 	}
 
-	return token, user, nil
+	return tokens, user, nil
+}
+
+func (s *AuthService) Refresh(refreshToken string) (*TokenPair, *model.User, error) {
+	claims, err := security.ParseJWT(strings.TrimSpace(refreshToken), s.jwtSecret)
+	if err != nil {
+		return nil, nil, errors.New("invalid refresh token")
+	}
+	if claims.TokenType != "refresh" {
+		return nil, nil, errors.New("invalid refresh token")
+	}
+	user, err := s.users.GetByID(claims.UserID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if user == nil || user.Status != 1 {
+		return nil, nil, errors.New("invalid refresh token user")
+	}
+	tokens, err := s.issueTokenPair(user)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokens, user, nil
+}
+
+func (s *AuthService) issueTokenPair(user *model.User) (*TokenPair, error) {
+	accessToken, err := security.GenerateTypedJWT(user.ID, user.Role, "access", s.jwtSecret, AccessTokenTTL)
+	if err != nil {
+		return nil, fmt.Errorf("generate access token failed: %w", err)
+	}
+	refreshToken, err := security.GenerateTypedJWT(user.ID, user.Role, "refresh", s.jwtSecret, RefreshTokenTTL)
+	if err != nil {
+		return nil, fmt.Errorf("generate refresh token failed: %w", err)
+	}
+	return &TokenPair{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
 func (s *AuthService) GetProfile(userID uint64) (*model.User, error) {

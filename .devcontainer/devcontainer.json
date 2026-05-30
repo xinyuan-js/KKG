@@ -1,0 +1,30 @@
+{
+  "name": "awesomeProject dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/awesomeProject",
+  "initializeCommand": "sh -lc 'test -f .env || cp .env.example .env; test -e .devcontainer/.env || ln -s ../.env .devcontainer/.env'",
+  "runServices": [
+    "workspace",
+    "mysql",
+    "redis",
+    "minio",
+    "rabbitmq",
+    "oj-sandbox",
+    "oj-api",
+    "blog-api",
+    "web",
+    "nginx"
+  ],
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "postCreateCommand": "go version && node --version && npm --version"
+}

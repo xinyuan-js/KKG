@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { getMyNotifications, getMyProfile, searchSuggest } from "@/lib/api";
+import { getCurrentUser, getMyNotifications, searchSuggest } from "@/lib/api";
 import {
   AUTH_CHANGED_EVENT,
   clearAccessToken,
@@ -9,7 +9,7 @@ import {
   getUserProfile,
   setUserProfile
 } from "@/lib/auth";
-import { syncDualLogout } from "@/lib/session-bridge";
+import { logoutAuthSession } from "@/lib/session-bridge";
 import { emitTopNotice } from "@/lib/notice";
 import { swipeNavigate } from "@/lib/view-transition";
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -47,18 +47,20 @@ export function Nav() {
   }
 
   async function validateToken() {
-    const token = getAccessToken();
-    if (!token) {
-      setUnreadCount(0);
-      return;
-    }
     try {
-      const [p, n] = await Promise.all([getMyProfile(token), getMyNotifications(token, 20)]);
+      const p = await getCurrentUser();
+      setLoggedIn(true);
       setUserProfile(p);
+      setUsername(p.username || "");
+      setAvatarURL(p.avatar_url || "");
+      const n = await getMyNotifications("", 20);
       setUnreadCount(n.unread_count || 0);
     } catch {
       // token失效时统一清理，避免“看起来已登录但接口401”。
       clearAccessToken();
+      setLoggedIn(false);
+      setUsername("");
+      setAvatarURL("");
       setUnreadCount(0);
     }
   }
@@ -152,7 +154,7 @@ export function Nav() {
   }, []);
 
   async function onLogout() {
-    await syncDualLogout();
+    await logoutAuthSession();
     setLoggedIn(false);
     setUsername("");
     setAvatarURL("");

@@ -222,23 +222,29 @@ services:
     volumes:
       - ./kkg-oj-backend:/app
     environment:
-      SERVER_PORT: "8121"
+      SERVER_PORT: "${OJ_SERVER_PORT:-8121}"
       MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(host.docker.internal:${MYSQL_PORT})/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
       REDIS_ADDR: "host.docker.internal:${REDIS_PORT}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      REDIS_DB: "1"
+      REDIS_DB: "${OJ_REDIS_DB:-1}"
       JWT_SECRET: "${JWT_SECRET}"
-      BLOG_BASE_URL: "http://host.docker.internal:8080"
-      RABBITMQ_ENABLED: "true"
+      BLOG_BASE_URL: "${OJ_BLOG_BASE_URL:-http://host.docker.internal:8080}"
+      RABBITMQ_ENABLED: "${OJ_RABBITMQ_ENABLED:-true}"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@blog-rabbitmq:5672/"
-      RABBITMQ_JUDGE_QUEUE: "oj.judge"
-      JUDGE_SANDBOX_TYPE: "remote"
-      JUDGE_SANDBOX_URL: "http://oj-sandbox:8082/executeCode"
-      JUDGE_AUTH_SECRET: "secretKey"
+      RABBITMQ_JUDGE_QUEUE: "${RABBITMQ_JUDGE_QUEUE:-oj.judge}"
+      JUDGE_SANDBOX_TYPE: "${JUDGE_SANDBOX_TYPE:-remote}"
+      JUDGE_SANDBOX_URL: "${JUDGE_SANDBOX_URL_INTERNAL:-http://oj-sandbox:8082/executeCode}"
+      JUDGE_AUTH_SECRET: "${JUDGE_AUTH_SECRET:-secretKey}"
+      AGENT_ENABLED: "${OJ_AGENT_ENABLED:-false}"
+      AGENT_API_KEY: "${OJ_AGENT_API_KEY:-}"
+      AGENT_BASE_URL: "${OJ_AGENT_BASE_URL:-https://api.deepseek.com/v1}"
+      AGENT_MODEL: "${OJ_AGENT_MODEL:-deepseek-chat}"
+      AGENT_MAX_ROUND: "${OJ_AGENT_MAX_ROUND:-3}"
+      AGENT_TEMPERATURE: "${OJ_AGENT_TEMPERATURE:-0.2}"
     depends_on:
       - oj-sandbox
     ports:
-      - "8121:8121"
+      - "${OJ_SERVER_PORT:-8121}:${OJ_SERVER_PORT:-8121}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -266,20 +272,23 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /private/tmp/kkg-sandbox:/private/tmp/kkg-sandbox
     environment:
-      SANDBOX_ADDR: ":8082"
-      SANDBOX_AUTH_SECRET: "secretKey"
-      SANDBOX_GO_MODE: "container"
-      SANDBOX_RUNNER_IMAGE: "golang:1.23-bookworm"
-      SANDBOX_RUNNER_TIMEOUT_SEC: "12"
-      SANDBOX_MAX_OUTPUT_BYTES: "1048576"
-      SANDBOX_WORKDIR: "/private/tmp/kkg-sandbox"
+      SANDBOX_ADDR: "${SANDBOX_ADDR:-:8082}"
+      SANDBOX_AUTH_SECRET: "${SANDBOX_AUTH_SECRET:-secretKey}"
+      SANDBOX_GO_MODE: "${SANDBOX_GO_MODE:-container}"
+      SANDBOX_RUNNER_IMAGE: "${SANDBOX_RUNNER_IMAGE:-golang:1.23-bookworm}"
+      SANDBOX_RUNNER_TIMEOUT_SEC: "${SANDBOX_RUNNER_TIMEOUT_SEC:-12}"
+      SANDBOX_RUNNER_CPUS: "${SANDBOX_RUNNER_CPUS:-1}"
+      SANDBOX_RUNNER_MEMORY: "${SANDBOX_RUNNER_MEMORY:-256m}"
+      SANDBOX_RUNNER_PIDS: "${SANDBOX_RUNNER_PIDS:-64}"
+      SANDBOX_MAX_OUTPUT_BYTES: "${SANDBOX_MAX_OUTPUT_BYTES:-1048576}"
+      SANDBOX_WORKDIR: "${SANDBOX_WORKDIR:-/private/tmp/kkg-sandbox}"
       GOCACHE: "/tmp/go-cache"
       GOTMPDIR: "/tmp"
       TMPDIR: "/tmp"
     tmpfs:
       - /tmp:exec,size=256m,mode=1777
     ports:
-      - "8082:8082"
+      - "${SANDBOX_PORT:-8082}:8082"
     networks:
       - blog_net
     profiles: ["oj"]
@@ -289,7 +298,7 @@ services:
     container_name: kkg-gateway
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${GATEWAY_PORT:-80}:80"
     volumes:
       - ./deploy/nginx/kkg.conf:/etc/nginx/conf.d/default.conf:ro
     extra_hosts:

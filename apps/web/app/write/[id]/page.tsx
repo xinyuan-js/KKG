@@ -5,6 +5,7 @@ import { MarkdownEditor } from "@/components/markdown-editor";
 import {
   createPostDraft,
   deletePostDraft,
+  getCurrentUser,
   getPostDraft,
   getPostDrafts,
   getMyPostDetail,
@@ -40,13 +41,13 @@ export default function WriteByIDPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      router.replace(`/login?redirect=${encodeURIComponent(pathname || "/write")}`);
-      return;
-    }
-    setChecking(false);
-    void initialize(token);
+    void getCurrentUser()
+      .then(() => {
+        const token = getAccessToken() || "cookie";
+        setChecking(false);
+        void initialize(token);
+      })
+      .catch(() => router.replace(`/login?redirect=${encodeURIComponent(pathname || "/write")}`));
   }, [router, pathname, params?.id]);
 
   async function initialize(token: string) {
@@ -119,7 +120,7 @@ export default function WriteByIDPage() {
     try {
       const token = getAccessToken();
       if (!token) {
-        throw new Error("未找到 access_token，请先登录");
+        throw new Error("请先登录");
       }
       const postID = Number(params?.id);
       if (!Number.isFinite(postID) || postID <= 0) {

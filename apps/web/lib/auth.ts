@@ -12,11 +12,12 @@ export type UserProfile = {
 
 export function setAccessToken(token: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`;
+  if (token) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, "cookie");
+  }
 }
 
-export function setAuthSession(token: string, profile: UserProfile) {
+export function setAuthSession(profile: UserProfile, token = "cookie") {
   if (typeof window === "undefined") return;
   setAccessToken(token);
   setUserProfile(profile);
@@ -25,7 +26,7 @@ export function setAuthSession(token: string, profile: UserProfile) {
 
 export function getAccessToken(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || (localStorage.getItem(USER_PROFILE_KEY) ? "cookie" : "");
 }
 
 export function getUserProfile(): UserProfile | null {
@@ -43,7 +44,6 @@ export function clearAccessToken() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
-  document.cookie = `${ACCESS_TOKEN_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
   emitAuthChanged();
 }
 

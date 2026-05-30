@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getAccessToken } from "@/lib/auth";
+import { uploadImage } from "@/lib/api";
 import { toZhError } from "@/lib/errors";
 
 type MarkdownEditorProps = {
@@ -144,25 +144,6 @@ export function MarkdownEditor({ value, onChange, placeholder }: MarkdownEditorP
 }
 
 async function uploadImageBlob(blob: Blob): Promise<string> {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error("请先登录后再上传图片");
-  }
   const file = blob instanceof File ? blob : new File([blob], `image-${Date.now()}.png`, { type: blob.type || "image/png" });
-  const form = new FormData();
-  form.append("file", file, file.name);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8080";
-  const resp = await fetch(`${API_BASE}/api/v1/uploads/image`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
-    body: form
-  });
-  const json = (await resp.json()) as { code: number; message: string; data?: { url?: string } };
-  if (!resp.ok || json.code !== 0 || !json.data?.url) {
-    throw new Error(toZhError(json.message || "", "上传图片失败"));
-  }
-  return json.data.url;
+  return uploadImage("", file);
 }

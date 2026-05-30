@@ -12,36 +12,32 @@ import (
 )
 
 type blogClaims struct {
-	UserID float64 `json:"user_id"`
+	UserID    float64 `json:"user_id"`
+	TokenType string  `json:"token_type"`
 	jwt.RegisteredClaims
 }
 
 func MustLogin(userSvc *service.UserService, jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		token := accessTokenFromRequest(c)
+		if token != "" && userSvc != nil && jwtSecret != "" {
+			sharedID, err := parseBlogUserID(token, jwtSecret)
+			if err == nil && sharedID > 0 {
+				u, ensureErr := userSvc.EnsureFromSharedUserID(sharedID)
+				if ensureErr == nil && u != nil {
+					c.Set("loginUserId", u.ID)
+					c.Next()
+					return
+				}
+			}
+		}
+
 		sess := sessions.Default(c)
 		userID := sess.Get(common.UserLoginState)
 		if userID != nil {
 			c.Set("loginUserId", userID)
 			c.Next()
 			return
-		}
-
-		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
-		if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") && userSvc != nil && jwtSecret != "" {
-			token := strings.TrimSpace(authHeader[7:])
-			if token != "" {
-				sharedID, err := parseBlogUserID(token, jwtSecret)
-				if err == nil && sharedID > 0 {
-					u, ensureErr := userSvc.EnsureFromSharedUserID(sharedID)
-					if ensureErr == nil && u != nil {
-						sess.Set(common.UserLoginState, u.ID)
-						_ = sess.Save()
-						c.Set("loginUserId", u.ID)
-						c.Next()
-						return
-					}
-				}
-			}
 		}
 
 		panic(common.NewBizError(common.NotLoginError, "未登录"))
@@ -62,8 +58,22 @@ func parseBlogUserID(tokenString, secret string) (int64, error) {
 	if !ok || !token.Valid {
 		return 0, errors.New("invalid token")
 	}
+	if claims.TokenType != "" && claims.TokenType != "access" {
+		return 0, errors.New("invalid token type")
+	}
 	if claims.UserID <= 0 {
 		return 0, errors.New("invalid user id")
 	}
 	return int64(claims.UserID), nil
+}
+
+func accessTokenFromRequest(c *gin.Context) string {
+	if token, err := c.Cookie("access_token"); err == nil && strings.TrimSpace(token) != "" {
+		return strings.TrimSpace(token)
+	}
+	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		return strings.TrimSpace(authHeader[7:])
+	}
+	return ""
 }

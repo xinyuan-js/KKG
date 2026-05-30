@@ -24,17 +24,21 @@ const (
 
 func JWT(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			response.Unauthorized(c, "missing or invalid authorization header")
+		token := accessTokenFromRequest(c)
+		if token == "" {
+			response.Unauthorized(c, "missing access token")
 			c.Abort()
 			return
 		}
 
-		token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer"))
 		claims, err := security.ParseJWT(token, secret)
 		if err != nil {
 			response.Unauthorized(c, "invalid token")
+			c.Abort()
+			return
+		}
+		if claims.TokenType != "" && claims.TokenType != "access" {
+			response.Unauthorized(c, "invalid token type")
 			c.Abort()
 			return
 		}
@@ -75,19 +79,29 @@ func IsAdminRole(role string) bool {
 
 func OptionalJWT(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		token := accessTokenFromRequest(c)
+		if token == "" {
 			c.Next()
 			return
 		}
-		token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer"))
 		claims, err := security.ParseJWT(token, secret)
-		if err == nil {
+		if err == nil && (claims.TokenType == "" || claims.TokenType == "access") {
 			c.Set(ctxUserID, claims.UserID)
 			c.Set(ctxRole, claims.Role)
 		}
 		c.Next()
 	}
+}
+
+func accessTokenFromRequest(c *gin.Context) string {
+	if token, err := c.Cookie("access_token"); err == nil && strings.TrimSpace(token) != "" {
+		return strings.TrimSpace(token)
+	}
+	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		return strings.TrimSpace(authHeader[7:])
+	}
+	return ""
 }
 
 func RequireActiveUser(db *gorm.DB) gin.HandlerFunc {

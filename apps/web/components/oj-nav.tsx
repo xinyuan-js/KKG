@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ojGetLoginUser, type OJUserVO } from "@/lib/oj-api";
-import { syncDualLogout } from "@/lib/session-bridge";
+import { getUserProfile } from "@/lib/auth";
+import { logoutAuthSession } from "@/lib/session-bridge";
 import { emitTopNotice } from "@/lib/notice";
 import { swipeNavigate } from "@/lib/view-transition";
 
@@ -24,7 +25,16 @@ export function OJNav() {
   }, []);
 
   useEffect(() => {
-    void ojGetLoginUser().then(setMe).catch(() => setMe(null));
+    const profile = getUserProfile();
+    void ojGetLoginUser()
+      .then((user) => {
+        setMe({
+          ...user,
+          userAvatar: user.userAvatar || profile?.avatar_url || "",
+          userName: user.userName || profile?.username || ""
+        });
+      })
+      .catch(() => setMe(null));
   }, [pathname]);
 
   function toggleTheme() {
@@ -43,11 +53,11 @@ export function OJNav() {
 
   async function onLogout() {
     try {
-      await syncDualLogout();
+      await logoutAuthSession();
       emitTopNotice("已退出登录", "success");
     } finally {
       setMe(null);
-      router.push("/oj/login");
+      router.push("/login?redirect=/oj");
     }
   }
   function onQuestionSearch(e: FormEvent<HTMLFormElement>) {
@@ -136,8 +146,8 @@ export function OJNav() {
         ) : (
           <>
             <Link className="tweet-link" href="/">返回博客</Link>
-            <Link className="tweet-link" href="/oj/login">登录</Link>
-            <Link className="tweet-link" href="/oj/register">注册</Link>
+            <Link className="tweet-link" href="/login?redirect=/oj">登录</Link>
+            <Link className="tweet-link" href="/register?redirect=/oj">注册</Link>
           </>
         )}
       </div>

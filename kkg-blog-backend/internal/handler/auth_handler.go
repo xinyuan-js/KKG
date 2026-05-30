@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/middleware"
 	"awesomeProject/internal/service"
 	"awesomeProject/pkg/response"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -66,14 +67,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, user, err := h.auth.Login(req.Account, req.Password)
+	tokens, user, err := h.auth.Login(req.Account, req.Password)
 	if err != nil {
 		response.Unauthorized(c, err.Error())
 		return
 	}
+	setAuthCookies(c, tokens)
 
 	response.OK(c, gin.H{
-		"access_token": token,
+		"access_token": tokens.AccessToken,
 		"user": gin.H{
 			"id":         user.ID,
 			"username":   user.Username,
@@ -82,6 +84,35 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"role":       user.Role,
 		},
 	})
+}
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil || refreshToken == "" {
+		response.Unauthorized(c, "missing refresh token")
+		return
+	}
+	tokens, user, err := h.auth.Refresh(refreshToken)
+	if err != nil {
+		clearAuthCookies(c)
+		response.Unauthorized(c, err.Error())
+		return
+	}
+	setAuthCookies(c, tokens)
+	response.OK(c, gin.H{
+		"user": gin.H{
+			"id":         user.ID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"avatar_url": user.AvatarURL,
+			"role":       user.Role,
+		},
+	})
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	clearAuthCookies(c)
+	response.OK(c, gin.H{"logged_out": true})
 }
 
 func (h *AuthHandler) GetProfile(c *gin.Context) {
@@ -145,4 +176,18 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"changed": true})
+}
+
+func setAuthCookies(c *gin.Context, tokens *service.TokenPair) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	secure := c.Request.TLS != nil
+	c.SetCookie("access_token", tokens.AccessToken, int(service.AccessTokenTTL.Seconds()), "/", "", secure, true)
+	c.SetCookie("refresh_token", tokens.RefreshToken, int(service.RefreshTokenTTL.Seconds()), "/", "", secure, true)
+}
+
+func clearAuthCookies(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	secure := c.Request.TLS != nil
+	c.SetCookie("access_token", "", -1, "/", "", secure, true)
+	c.SetCookie("refresh_token", "", -1, "/", "", secure, true)
 }

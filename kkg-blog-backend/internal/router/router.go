@@ -54,6 +54,9 @@ func New(app *bootstrap.App) *gin.Engine {
 		{
 			authGroup.POST("/register", authHandler.Register)
 			authGroup.POST("/login", authHandler.Login)
+			authGroup.POST("/refresh", authHandler.Refresh)
+			authGroup.POST("/logout", authHandler.Logout)
+			authGroup.GET("/me", middleware.JWT(app.Config.JWTSecretKey), middleware.RequireActiveUser(app.DB), authHandler.GetProfile)
 		}
 
 		v1.GET("/posts", postHandler.ListPublished)
