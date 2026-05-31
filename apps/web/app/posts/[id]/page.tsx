@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Nav } from "@/components/nav";
+import { Avatar } from "@/components/avatar";
 import { getPublishedPostDetail } from "@/lib/api";
 import { PostComments } from "@/components/post-comments";
 import { PostEngagementBar } from "@/components/post-engagement";
@@ -52,11 +53,7 @@ export default async function PostDetailPage({ params }: PageProps) {
             <h1 className="detail-title">{post.title}</h1>
             <div className="detail-meta-row">
               <Link href={`/users/${post.author_id}`} className="detail-author">
-                {post.author_avatar_url ? (
-                  <img className="tweet-avatar" src={post.author_avatar_url} alt={authorName} />
-                ) : (
-                  <span className="tweet-avatar tweet-avatar-fallback">{authorName.slice(0, 1).toUpperCase()}</span>
-                )}
+                <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={post.author_avatar_url} name={authorName} />
                 <span className="tweet-author">{authorName}</span>
               </Link>
             </div>

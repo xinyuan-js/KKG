@@ -75,12 +75,21 @@ func main() {
 		if mqErr != nil {
 			logger.Warn("init rabbitmq failed, fallback local async judge", zap.Error(mqErr))
 		} else {
+			judgeQueue.SetDeadLetterHandler(func(submitID int64, reason string, retryCount int32) {
+				h.MarkSubmitSystemError(submitID, reason)
+				logger.Error("judge submit moved to dlq",
+					zap.Int64("submitId", submitID),
+					zap.Int32("retryCount", retryCount),
+					zap.String("reason", reason),
+				)
+			})
 			h.SetJudgeSubmitter(judgeQueue)
 			if consumeErr := judgeQueue.Consume(context.Background(), h.ConsumeJudge); consumeErr != nil {
 				logger.Warn("consume judge queue failed, fallback local async judge", zap.Error(consumeErr))
 				_ = judgeQueue.Close()
 			} else {
 				logger.Info("judge queue consumer started", zap.String("queue", cfg.RabbitMQ.JudgeQueue))
+				h.StartPendingSubmitRequeue(context.Background())
 			}
 		}
 	}

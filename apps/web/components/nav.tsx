@@ -12,6 +12,7 @@ import {
 import { logoutAuthSession } from "@/lib/session-bridge";
 import { emitTopNotice } from "@/lib/notice";
 import { swipeNavigate } from "@/lib/view-transition";
+import { Avatar } from "@/components/avatar";
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -279,11 +280,7 @@ export function Nav() {
         {loggedIn ? (
           <div className="nav-user-menu">
             <Link href="/me" prefetch={false} className="nav-user-link">
-              {avatarURL ? (
-                <img className="nav-avatar" src={avatarURL} alt={username || "avatar"} />
-              ) : (
-                <span className="nav-avatar nav-avatar-fallback">{(username || "U").slice(0, 1).toUpperCase()}</span>
-              )}
+              <Avatar className="nav-avatar" fallbackClassName="nav-avatar nav-avatar-fallback" src={avatarURL} name={username} />
               <span>{username || "个人中心"}</span>
             </Link>
             <div className="nav-user-dropdown">

@@ -3,6 +3,7 @@
 import { createPostComment, getPostComments, type Comment } from "@/lib/api";
 import { getAccessToken, getUserProfile } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
+import { Avatar } from "@/components/avatar";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -144,11 +145,7 @@ export function PostComments({ postID }: Props) {
           return (
             <div className="comment-item" key={root.id}>
               <div className="comment-head">
-                {root.author_avatar_url ? (
-                  <img className="tweet-avatar" src={root.author_avatar_url} alt={rootAuthor} />
-                ) : (
-                  <span className="tweet-avatar tweet-avatar-fallback">{rootAuthor.slice(0, 1).toUpperCase()}</span>
-                )}
+                <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={root.author_avatar_url} name={rootAuthor} />
                 <strong className="tweet-author">{rootAuthor}</strong>
                 <span className="tweet-time">{new Date(root.created_at).toLocaleString()}</span>
               </div>
@@ -199,13 +196,7 @@ export function PostComments({ postID }: Props) {
                     return (
                       <div className="comment-reply-item" key={reply.id}>
                         <div className="comment-head">
-                          {reply.author_avatar_url ? (
-                            <img className="tweet-avatar" src={reply.author_avatar_url} alt={author} />
-                          ) : (
-                            <span className="tweet-avatar tweet-avatar-fallback">
-                              {author.slice(0, 1).toUpperCase()}
-                            </span>
-                          )}
+                          <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={reply.author_avatar_url} name={author} />
                           <strong className="tweet-author">{author}</strong>
                           <span className="tweet-time">{new Date(reply.created_at).toLocaleString()}</span>
                         </div>

@@ -8,6 +8,7 @@ import { getUserProfile } from "@/lib/auth";
 import { logoutAuthSession } from "@/lib/session-bridge";
 import { emitTopNotice } from "@/lib/notice";
 import { swipeNavigate } from "@/lib/view-transition";
+import { Avatar } from "@/components/avatar";
 
 export function OJNav() {
   const pathname = usePathname();
@@ -127,11 +128,7 @@ export function OJNav() {
         {me ? (
           <div className="nav-user-menu">
             <Link href="/me" prefetch={false} className="nav-user-link">
-              {me.userAvatar ? (
-                <img className="nav-avatar" src={me.userAvatar} alt={me.userName || "avatar"} />
-              ) : (
-                <span className="nav-avatar nav-avatar-fallback">{(me.userName || "U").slice(0, 1).toUpperCase()}</span>
-              )}
+              <Avatar className="nav-avatar" fallbackClassName="nav-avatar nav-avatar-fallback" src={me.userAvatar} name={me.userName} />
               <span>{me.userName || "个人中心"}</span>
             </Link>
             <div className="nav-user-dropdown">

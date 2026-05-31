@@ -3,6 +3,7 @@
 import { getPostRankingsByPeriod, type Post } from "@/lib/api";
 import { toZhError } from "@/lib/errors";
 import { Pager } from "@/components/pager";
+import { Avatar } from "@/components/avatar";
 import Link from "next/link";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 
@@ -73,11 +74,7 @@ export function RankingsPanel() {
               <div className="tweet-card-content">
                 <div className="tweet-head">
                   <Link href={`/users/${post.author_id}`} className="tweet-author-block tweet-author-link">
-                    {post.author_avatar_url ? (
-                      <img className="tweet-avatar" src={post.author_avatar_url} alt={authorName} />
-                    ) : (
-                      <span className="tweet-avatar tweet-avatar-fallback">{authorName.slice(0, 1).toUpperCase()}</span>
-                    )}
+                    <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={post.author_avatar_url} name={authorName} />
                     <strong className="tweet-author">{authorName}</strong>
                   </Link>
                   <div className="ranking-head-right">

@@ -1,6 +1,7 @@
 "use client";
 
 import { Pager } from "@/components/pager";
+import { Avatar } from "@/components/avatar";
 import { toZhError } from "@/lib/errors";
 import { ojFirstACRank24h, type OJFirstACRankItem } from "@/lib/oj-api";
 import Link from "next/link";
@@ -53,20 +54,12 @@ export function OJFirstACRankPanel() {
                 <div className="tweet-head">
                   {userLink ? (
                     <Link href={userLink} className="tweet-author-block tweet-author-link">
-                      {item.userAvatar ? (
-                        <img className="tweet-avatar" src={item.userAvatar} alt={authorName} />
-                      ) : (
-                        <span className="tweet-avatar tweet-avatar-fallback">{authorName.slice(0, 1).toUpperCase()}</span>
-                      )}
+                      <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={item.userAvatar} name={authorName} />
                       <strong className="tweet-author">{authorName}</strong>
                     </Link>
                   ) : (
                     <div className="tweet-author-block">
-                      {item.userAvatar ? (
-                        <img className="tweet-avatar" src={item.userAvatar} alt={authorName} />
-                      ) : (
-                        <span className="tweet-avatar tweet-avatar-fallback">{authorName.slice(0, 1).toUpperCase()}</span>
-                      )}
+                      <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={item.userAvatar} name={authorName} />
                       <strong className="tweet-author">{authorName}</strong>
                     </div>
                   )}

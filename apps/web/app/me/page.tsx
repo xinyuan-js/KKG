@@ -4,6 +4,7 @@ import { changeMyPassword, getCurrentUser, updateMyProfile, uploadImage } from "
 import { getAccessToken, getUserProfile, setUserProfile } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
 import { logoutAuthSession } from "@/lib/session-bridge";
+import { Avatar } from "@/components/avatar";
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -211,13 +212,13 @@ export default function MePage() {
               ID: {profile.id} | 角色: {profile.role || "user"}
             </p>
             <div className="profile-avatar-row">
-              {avatarURL ? (
-                <img className="profile-avatar" src={avatarURL} alt="avatar" />
-              ) : (
-                <div className="profile-avatar profile-avatar-fallback">
-                  {(username || profile.username || "U").slice(0, 1).toUpperCase()}
-                </div>
-              )}
+              <Avatar
+                className="profile-avatar"
+                fallbackClassName="profile-avatar profile-avatar-fallback"
+                src={avatarURL}
+                name={username || profile.username}
+                loading="eager"
+              />
               <div className="section-gap">
                 <input
                   ref={avatarInputRef}

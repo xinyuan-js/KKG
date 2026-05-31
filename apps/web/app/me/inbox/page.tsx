@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "@/components/empty-state";
+import { Avatar } from "@/components/avatar";
 import { getMyNotifications, markMyNotificationRead } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
@@ -77,11 +78,7 @@ export default function InboxPage() {
             <div className={`card inbox-item ${n.is_read ? "is-read" : ""}`} key={n.id}>
               <div className="inbox-head">
                 <div className="tweet-author-block">
-                  {n.actor_avatar_url ? (
-                    <img className="tweet-avatar" src={n.actor_avatar_url} alt={actor} />
-                  ) : (
-                    <span className="tweet-avatar tweet-avatar-fallback">{actor.slice(0, 1).toUpperCase()}</span>
-                  )}
+                  <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={n.actor_avatar_url} name={actor} />
                   <strong className="tweet-author">{actor}</strong>
                   {!n.is_read ? <span className="nav-badge">新</span> : null}
                 </div>

@@ -11,13 +11,16 @@ import {
   ojListQuestionSubmits,
   ojRunQuestion,
   ojSubmitQuestion,
+  createOJSubmissionEventSource,
   type OJAgentTask,
   type OJQuestionSolutionItem,
+  type OJSubmissionEvent,
   type OJQuestionSubmitVO,
   type OJQuestionVO
 } from "@/lib/oj-api";
 import { toZhError } from "@/lib/errors";
 import { emitTopNotice } from "@/lib/notice";
+import { Avatar } from "@/components/avatar";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -78,9 +81,31 @@ export default function OJQuestionDetailPage() {
     if (!autoRefreshSubmits || !Number.isFinite(id) || id <= 0) return;
     const timer = window.setInterval(() => {
       void loadSubmits();
-    }, 2000);
+    }, 10000);
     return () => window.clearInterval(timer);
   }, [autoRefreshSubmits, id]);
+
+  useEffect(() => {
+    if (!Number.isFinite(id) || id <= 0 || meUserId <= 0) return;
+    const source = createOJSubmissionEventSource();
+    source.addEventListener("open", () => {
+      setAutoRefreshSubmits(false);
+    });
+    source.addEventListener("submission", (event) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data) as OJSubmissionEvent;
+        if (data.questionId !== id) return;
+        applySubmissionEvent(data);
+        setAutoRefreshSubmits(false);
+      } catch {
+        // ignore malformed stream events
+      }
+    });
+    source.addEventListener("error", () => {
+      setAutoRefreshSubmits(true);
+    });
+    return () => source.close();
+  }, [id, meUserId]);
 
   useEffect(() => {
     if (submitCooldownLeft <= 0) return;
@@ -166,6 +191,77 @@ export default function OJQuestionDetailPage() {
     }
     const hasPending = next.some((it) => it.status === 0 || it.status === 1);
     setAutoRefreshSubmits(hasPending);
+  }
+
+  function emitSubmissionFinal(data: {
+    submitId: number;
+    status: number;
+    message?: string;
+    score?: number;
+  }) {
+    if (!trackedSubmitIDsRef.current.has(data.submitId) || typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("oj:submission-final", {
+      detail: {
+        submitId: data.submitId,
+        status: data.status,
+        message: data.message || "",
+        score: data.score ?? 0
+      }
+    }));
+    trackedSubmitIDsRef.current.delete(data.submitId);
+  }
+
+  function applySubmissionEvent(evt: OJSubmissionEvent) {
+    const isFinal = evt.status > 1;
+    setSubmits((prev) => {
+      let found = false;
+      const next = prev.map((it) => {
+        if (it.id !== evt.submitId) return it;
+        found = true;
+        const updated: OJQuestionSubmitVO = {
+          ...it,
+          status: evt.status,
+          judgeInfo: {
+            ...(it.judgeInfo || {}),
+            message: evt.message || it.judgeInfo?.message,
+            score: evt.score ?? it.judgeInfo?.score,
+            time: evt.time ?? it.judgeInfo?.time,
+            memory: evt.memory ?? it.judgeInfo?.memory,
+            progress: evt.progress ?? it.judgeInfo?.progress
+          }
+        };
+        submitStatusRef.current.set(it.id, evt.status);
+        return updated;
+      });
+      if (!found) {
+        void loadSubmits();
+        return prev;
+      }
+      return next;
+    });
+    if (selectedSubmit?.id === evt.submitId) {
+      setSelectedSubmit((prev) => prev ? {
+        ...prev,
+        status: evt.status,
+        judgeInfo: {
+          ...(prev.judgeInfo || {}),
+          message: evt.message || prev.judgeInfo?.message,
+          score: evt.score ?? prev.judgeInfo?.score,
+          time: evt.time ?? prev.judgeInfo?.time,
+          memory: evt.memory ?? prev.judgeInfo?.memory,
+          progress: evt.progress ?? prev.judgeInfo?.progress
+        }
+      } : prev);
+    }
+    if (isFinal) {
+      emitSubmissionFinal({
+        submitId: evt.submitId,
+        status: evt.status,
+        message: evt.message,
+        score: evt.score
+      });
+      setAutoRefreshSubmits(false);
+    }
   }
 
   async function onStartEdit() {
@@ -414,10 +510,11 @@ export default function OJQuestionDetailPage() {
                         rel="noreferrer"
                         style={{ display: "grid", gridTemplateColumns: "32px minmax(0,1fr)", gap: 10, alignItems: "center", minWidth: 0, flex: 1 }}
                       >
-                        <img
-                          src={it.post?.author_avatar_url || "/default-avatar.png"}
-                          alt={it.post?.author_name || it.post?.authorName || "博客作者"}
+                        <Avatar
                           className="nav-avatar"
+                          fallbackClassName="nav-avatar nav-avatar-fallback"
+                          src={it.post?.author_avatar_url}
+                          name={it.post?.author_name || it.post?.authorName || "博客作者"}
                           style={{ width: 32, height: 32 }}
                         />
                         <div style={{ minWidth: 0 }}>
@@ -789,6 +886,7 @@ function statusText(status: number, message: string) {
   if (status === 0) return "Pending";
   if (status === 1) return "Judging";
   if (status === 2) return "AC";
+  if (status === 4) return "System Error";
   const m = (message || "").toLowerCase();
   if (m.includes("wrong answer")) return "WA";
   if (m.includes("compile")) return "CE";
@@ -801,6 +899,7 @@ function statusText(status: number, message: string) {
 function statusClass(status: number, message: string) {
   if (status === 0 || status === 1) return "pending";
   if (status === 2) return "ac";
+  if (status === 4) return "fail";
   const m = (message || "").toLowerCase();
   if (m.includes("wrong answer")) return "wa";
   if (m.includes("compile")) return "ce";

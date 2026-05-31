@@ -1248,6 +1248,8 @@ button:disabled {
   overflow: hidden;
   contain: layout paint;
   transform: translateX(-50%) translateZ(0);
+  animation: none !important;
+  transition: none !important;
 }
 
 .oj-bottom-drawer-handle {
@@ -1263,11 +1265,14 @@ button:disabled {
   gap: 10px;
   transform: none;
   box-shadow: none;
+  animation: none !important;
+  transition: none !important;
 }
 
 .oj-bottom-drawer-handle:hover:not(:disabled) {
+  animation: none !important;
   transform: none;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
 .oj-drawer-toggle-icon {
@@ -1275,11 +1280,14 @@ button:disabled {
   height: 26px;
   border-radius: 999px;
   border: 1px solid rgba(173, 199, 235, 0.72);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   line-height: 1;
+  animation: none !important;
+  transition: none !important;
 }
 
 .oj-bottom-drawer-body {
@@ -1606,10 +1614,13 @@ button:disabled {
   place-items: center;
   z-index: 120;
   padding: 16px;
+  overflow: auto;
 }
 
 .oj-modal {
   width: min(820px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
   border-radius: 12px;
   border: 1px solid rgba(173, 199, 235, 0.72);
   background:

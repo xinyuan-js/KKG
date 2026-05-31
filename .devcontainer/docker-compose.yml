@@ -210,12 +210,6 @@ services:
       JUDGE_SANDBOX_TYPE: ${JUDGE_SANDBOX_TYPE:-remote}
       JUDGE_SANDBOX_URL: http://oj-sandbox:8082/executeCode
       JUDGE_AUTH_SECRET: ${JUDGE_AUTH_SECRET:-secretKey}
-      AGENT_ENABLED: ${OJ_AGENT_ENABLED:-false}
-      AGENT_API_KEY: ${OJ_AGENT_API_KEY:-}
-      AGENT_BASE_URL: ${OJ_AGENT_BASE_URL:-https://api.deepseek.com/v1}
-      AGENT_MODEL: ${OJ_AGENT_MODEL:-deepseek-chat}
-      AGENT_MAX_ROUND: ${OJ_AGENT_MAX_ROUND:-3}
-      AGENT_TEMPERATURE: ${OJ_AGENT_TEMPERATURE:-0.2}
     ports:
       - "${OJ_SERVER_PORT:-8121}:${OJ_SERVER_PORT:-8121}"
     depends_on:

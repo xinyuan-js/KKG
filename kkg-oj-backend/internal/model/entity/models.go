@@ -12,8 +12,8 @@ type User struct {
 	UserAvatar   string    `gorm:"column:userAvatar" json:"userAvatar"`
 	UserProfile  string    `gorm:"column:userProfile" json:"userProfile"`
 	UserRole     string    `gorm:"column:userRole" json:"userRole"`
-	CreateTime   time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime   time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime   time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime   time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete     int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -33,8 +33,8 @@ type Question struct {
 	ThumbNum    int32     `gorm:"column:thumbNum" json:"thumbNum"`
 	FavourNum   int32     `gorm:"column:favourNum" json:"favourNum"`
 	UserID      int64     `gorm:"column:userId" json:"userId"`
-	CreateTime  time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime  time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime  time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime  time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete    int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -48,8 +48,8 @@ type QuestionSubmit struct {
 	Status     int32     `gorm:"column:status" json:"status"`
 	QuestionID int64     `gorm:"column:questionId" json:"questionId"`
 	UserID     int64     `gorm:"column:userId" json:"userId"`
-	CreateTime time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete   int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -60,8 +60,8 @@ type QuestionSolutionPost struct {
 	QuestionID int64     `gorm:"column:questionId;index:idx_question_post,priority:1;not null" json:"questionId"`
 	PostID     int64     `gorm:"column:postId;index:idx_question_post,priority:2;not null" json:"postId"`
 	UserID     int64     `gorm:"column:userId;not null" json:"userId"`
-	CreateTime time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete   int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -80,8 +80,8 @@ type AgentSolutionTask struct {
 	AnswerMarkdown string    `gorm:"column:answerMarkdown;type:longtext" json:"answerMarkdown"`
 	AnswerCode     string    `gorm:"column:answerCode;type:longtext" json:"answerCode"`
 	LastError      string    `gorm:"column:lastError;type:text" json:"lastError"`
-	CreateTime     time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime     time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime     time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime     time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete       int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -95,8 +95,8 @@ type Post struct {
 	ThumbNum   int32     `gorm:"column:thumbNum" json:"thumbNum"`
 	FavourNum  int32     `gorm:"column:favourNum" json:"favourNum"`
 	UserID     int64     `gorm:"column:userId" json:"userId"`
-	CreateTime time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 	IsDelete   int32     `gorm:"column:isDelete" json:"isDelete"`
 }
 
@@ -106,8 +106,8 @@ type PostThumb struct {
 	ID         int64     `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	PostID     int64     `gorm:"column:postId" json:"postId"`
 	UserID     int64     `gorm:"column:userId" json:"userId"`
-	CreateTime time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 }
 
 func (PostThumb) TableName() string { return "post_thumb" }
@@ -116,8 +116,8 @@ type PostFavour struct {
 	ID         int64     `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	PostID     int64     `gorm:"column:postId" json:"postId"`
 	UserID     int64     `gorm:"column:userId" json:"userId"`
-	CreateTime time.Time `gorm:"column:createTime" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:updateTime" json:"updateTime"`
+	CreateTime time.Time `gorm:"column:createTime;autoCreateTime" json:"createTime"`
+	UpdateTime time.Time `gorm:"column:updateTime;autoUpdateTime" json:"updateTime"`
 }
 
 func (PostFavour) TableName() string { return "post_favour" }

@@ -99,6 +99,7 @@ export function OJSubmitNotifier() {
 
 function statusText(status: number, message: string) {
   if (status === 2) return "AC";
+  if (status === 4) return "System Error";
   const m = (message || "").toLowerCase();
   if (m.includes("wrong answer")) return "WA";
   if (m.includes("compile")) return "CE";

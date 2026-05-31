@@ -72,12 +72,24 @@ export type OJQuestionSubmitVO = {
   id: number;
   language: string;
   code?: string;
-  judgeInfo?: { message?: string; time?: number; memory?: number; score?: number };
+  judgeInfo?: { message?: string; time?: number; memory?: number; score?: number; progress?: number };
   status: number;
   questionId: number;
   userId: number;
   createTime?: string;
   updateTime?: string;
+};
+
+export type OJSubmissionEvent = {
+  submitId: number;
+  questionId: number;
+  status: number;
+  message?: string;
+  score?: number;
+  time?: number;
+  memory?: number;
+  progress?: number;
+  occurredAt?: number;
 };
 
 export type OJQuestionSolutionItem = {
@@ -292,6 +304,10 @@ export async function ojListQuestionSubmits(input: {
     method: "POST",
     body: JSON.stringify({ current: 1, pageSize: 10, ...input })
   });
+}
+
+export function createOJSubmissionEventSource() {
+  return new EventSource(`${OJ_API_BASE}/api/question/submission/events`, { withCredentials: true });
 }
 
 export async function ojAdminListUsers(input?: {

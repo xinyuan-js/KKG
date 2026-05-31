@@ -50,6 +50,14 @@ const (
 	firstACRankZSetKey   = "oj:rank:first_ac:24h"
 	firstACExpireZSetKey = "oj:rank:first_ac:24h:events"
 	firstACEventTTL      = 24 * time.Hour
+	submitRuntimeTTL     = 30 * time.Minute
+	submitFinalCacheTTL  = 5 * time.Minute
+
+	submitStatusPending     int32 = 0
+	submitStatusRunning     int32 = 1
+	submitStatusAccepted    int32 = 2
+	submitStatusRejected    int32 = 3
+	submitStatusSystemError int32 = 4
 )
 
 type JudgeSubmitter interface {
@@ -107,6 +115,7 @@ type submitEvent struct {
 	Score      int64  `json:"score,omitempty"`
 	Time       int64  `json:"time,omitempty"`
 	Memory     int64  `json:"memory,omitempty"`
+	Progress   int64  `json:"progress,omitempty"`
 	OccurredAt int64  `json:"occurredAt"`
 }
 
@@ -114,12 +123,96 @@ func (h *Handler) SetJudgeSubmitter(s JudgeSubmitter) {
 	h.judgeSubmitter = s
 }
 
+func (h *Handler) StartPendingSubmitRequeue(ctx context.Context) {
+	if h.judgeSubmitter == nil {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				h.requeueStuckSubmits()
+			}
+		}
+	}()
+}
+
+func (h *Handler) requeueStuckSubmits() {
+	if h.judgeSubmitter == nil {
+		return
+	}
+	now := time.Now()
+	var pending []entity.QuestionSubmit
+	if err := h.db.
+		Where("status = ? AND isDelete = 0 AND createTime < ?", submitStatusPending, now.Add(-30*time.Second)).
+		Order("id asc").
+		Limit(100).
+		Find(&pending).Error; err == nil {
+		for _, item := range pending {
+			_ = h.judgeSubmitter.Publish(item.ID)
+		}
+	}
+
+	var running []entity.QuestionSubmit
+	if err := h.db.
+		Where("status = ? AND isDelete = 0 AND updateTime < ?", submitStatusRunning, now.Add(-10*time.Minute)).
+		Order("id asc").
+		Limit(100).
+		Find(&running).Error; err != nil {
+		return
+	}
+	for _, item := range running {
+		reset := h.db.Model(&entity.QuestionSubmit{}).
+			Where("id = ? AND status = ? AND isDelete = 0", item.ID, submitStatusRunning).
+			Updates(map[string]interface{}{"status": submitStatusPending, "judgeInfo": `{"message":"Requeued after judge timeout"}`, "updateTime": now})
+		if reset.Error == nil && reset.RowsAffected == 1 {
+			_ = h.judgeSubmitter.Publish(item.ID)
+		}
+	}
+}
+
 func (h *Handler) ConsumeJudge(submitID int64) error {
 	if submitID <= 0 {
 		return errors.New("invalid submit id")
 	}
-	h.judgeAsync(submitID)
-	return nil
+	return h.judgeAsync(submitID)
+}
+
+func (h *Handler) MarkSubmitSystemError(submitID int64, reason string) {
+	if submitID <= 0 {
+		return
+	}
+	msg := strings.TrimSpace(reason)
+	if msg == "" {
+		msg = "System retry exhausted"
+	}
+	judgeInfo := fmt.Sprintf(`{"message":"%s"}`, escapeJSON(msg))
+	res := h.db.Model(&entity.QuestionSubmit{}).
+		Where("id = ? AND status IN ? AND isDelete = 0", submitID, []int32{submitStatusPending, submitStatusRunning}).
+		Updates(map[string]interface{}{
+			"status":     submitStatusSystemError,
+			"judgeInfo":  judgeInfo,
+			"updateTime": time.Now(),
+		})
+	if res.Error != nil || res.RowsAffected == 0 {
+		return
+	}
+	var s entity.QuestionSubmit
+	if err := h.db.Select("id, questionId, userId").Where("id = ? AND isDelete = 0", submitID).First(&s).Error; err != nil {
+		return
+	}
+	h.publishSubmitRuntimeEvent(s.UserID, submitEvent{
+		SubmitID:   s.ID,
+		QuestionID: s.QuestionID,
+		Status:     submitStatusSystemError,
+		Message:    msg,
+		Progress:   100,
+		OccurredAt: time.Now().UnixMilli(),
+	}, submitFinalCacheTTL)
 }
 
 func (h *Handler) UserService() *service.UserService {
@@ -440,7 +533,15 @@ func (h *Handler) QuestionSubmitList(c *gin.Context) {
 		if it.UserID != login.ID && !h.userSvc.IsAdmin(login) {
 			code = ""
 		}
-		resp = append(resp, map[string]interface{}{"id": it.ID, "language": it.Language, "code": code, "judgeInfo": json.RawMessage(it.JudgeInfo), "status": it.Status, "questionId": it.QuestionID, "userId": it.UserID, "createTime": it.CreateTime, "updateTime": it.UpdateTime})
+		status := it.Status
+		judgeInfo := it.JudgeInfo
+		if status <= 1 {
+			if runtime, ok := h.getSubmitRuntimeStatus(it.ID); ok {
+				status = runtime.Status
+				judgeInfo = runtime.judgeInfoJSON()
+			}
+		}
+		resp = append(resp, map[string]interface{}{"id": it.ID, "language": it.Language, "code": code, "judgeInfo": json.RawMessage(judgeInfo), "status": status, "questionId": it.QuestionID, "userId": it.UserID, "createTime": it.CreateTime, "updateTime": it.UpdateTime})
 	}
 	c.JSON(http.StatusOK, common.Success(common.PageResult{Records: resp, Total: total, Current: req.Current, Size: req.PageSize}))
 }
@@ -971,24 +1072,43 @@ func (h *Handler) mustSuperAdmin(c *gin.Context) {
 	}
 }
 
-func (h *Handler) judgeAsync(submitID int64) {
-	var s entity.QuestionSubmit
-	if h.db.Where("id=? AND isDelete=0", submitID).First(&s).Error != nil || s.Status != 0 {
-		return
+func (h *Handler) judgeAsync(submitID int64) error {
+	claim := h.db.Model(&entity.QuestionSubmit{}).
+		Where("id=? AND status=? AND isDelete=0", submitID, submitStatusPending).
+		Updates(map[string]interface{}{"status": submitStatusRunning, "updateTime": time.Now()})
+	if claim.Error != nil {
+		return claim.Error
 	}
-	h.db.Model(&entity.QuestionSubmit{}).Where("id=?", submitID).Updates(map[string]interface{}{"status": 1})
+	if claim.RowsAffected == 0 {
+		return nil
+	}
+	var s entity.QuestionSubmit
+	if err := h.db.Where("id=? AND isDelete=0", submitID).First(&s).Error; err != nil {
+		return err
+	}
+	h.publishSubmitRuntimeEvent(s.UserID, submitEvent{
+		SubmitID:   s.ID,
+		QuestionID: s.QuestionID,
+		Status:     submitStatusRunning,
+		Message:    "Judging",
+		Progress:   10,
+		OccurredAt: time.Now().UnixMilli(),
+	}, submitRuntimeTTL)
 	var q entity.Question
 	if h.db.Where("id=? AND isDelete=0", s.QuestionID).First(&q).Error != nil {
 		judgeInfo := `{"message":"Question Not Found"}`
-		h.db.Model(&entity.QuestionSubmit{}).Where("id=?", submitID).Updates(map[string]interface{}{"status": 3, "judgeInfo": judgeInfo})
-		h.publishSubmitEvent(s.UserID, submitEvent{
+		if err := h.finishJudgeSubmit(submitID, submitStatusRejected, judgeInfo); err != nil {
+			return err
+		}
+		h.publishSubmitRuntimeEvent(s.UserID, submitEvent{
 			SubmitID:   s.ID,
 			QuestionID: s.QuestionID,
-			Status:     3,
+			Status:     submitStatusRejected,
 			Message:    "Question Not Found",
+			Progress:   100,
 			OccurredAt: time.Now().UnixMilli(),
-		})
-		return
+		}, submitFinalCacheTTL)
+		return nil
 	}
 	var judgeCases []judgeCase
 	_ = json.Unmarshal([]byte(q.JudgeCase), &judgeCases)
@@ -999,31 +1119,41 @@ func (h *Handler) judgeAsync(submitID int64) {
 	resp, err := h.executeCode(s.Language, s.Code, inputs)
 	if err != nil {
 		judgeInfo := fmt.Sprintf(`{"message":"%s"}`, escapeJSON(err.Error()))
-		h.db.Model(&entity.QuestionSubmit{}).Where("id=?", submitID).Updates(map[string]interface{}{"status": 3, "judgeInfo": judgeInfo})
-		h.publishSubmitEvent(s.UserID, submitEvent{
+		if err := h.finishJudgeSubmit(submitID, submitStatusSystemError, judgeInfo); err != nil {
+			return err
+		}
+		h.publishSubmitRuntimeEvent(s.UserID, submitEvent{
 			SubmitID:   s.ID,
 			QuestionID: s.QuestionID,
-			Status:     3,
+			Status:     submitStatusSystemError,
 			Message:    err.Error(),
+			Progress:   100,
 			OccurredAt: time.Now().UnixMilli(),
-		})
-		return
+		}, submitFinalCacheTTL)
+		return nil
 	}
 	result := doJudge(judgeCases, resp.OutputList, resp.JudgeInfo, q.JudgeConfig)
-	status := int32(3)
+	status := int32(submitStatusRejected)
+	acceptedBefore := int64(-1)
 	if strings.EqualFold(result.Message, "Accepted") {
-		status = 2
-		_ = h.db.Model(&entity.Question{}).Where("id=?", q.ID).Update("acceptedNum", gorm.Expr("acceptedNum + 1")).Error
-		var acceptedBefore int64
+		status = submitStatusAccepted
 		if err := h.db.Model(&entity.QuestionSubmit{}).
-			Where("userId = ? AND questionId = ? AND status = ? AND isDelete = 0", s.UserID, s.QuestionID, 2).
-			Count(&acceptedBefore).Error; err == nil && acceptedBefore == 0 {
-			h.recordFirstAccepted24h(s.UserID, s.QuestionID, s.ID)
+			Where("userId = ? AND questionId = ? AND status = ? AND isDelete = 0", s.UserID, s.QuestionID, submitStatusAccepted).
+			Count(&acceptedBefore).Error; err != nil {
+			acceptedBefore = -1
 		}
 	}
 	jInfo, _ := json.Marshal(result)
-	h.db.Model(&entity.QuestionSubmit{}).Where("id=?", submitID).Updates(map[string]interface{}{"status": status, "judgeInfo": string(jInfo)})
-	h.publishSubmitEvent(s.UserID, submitEvent{
+	if err := h.finishJudgeSubmit(submitID, status, string(jInfo)); err != nil {
+		return err
+	}
+	if status == submitStatusAccepted {
+		_ = h.db.Model(&entity.Question{}).Where("id=?", q.ID).Update("acceptedNum", gorm.Expr("acceptedNum + 1")).Error
+		if acceptedBefore == 0 {
+			h.recordFirstAccepted24h(s.UserID, s.QuestionID, s.ID)
+		}
+	}
+	h.publishSubmitRuntimeEvent(s.UserID, submitEvent{
 		SubmitID:   s.ID,
 		QuestionID: s.QuestionID,
 		Status:     status,
@@ -1031,8 +1161,20 @@ func (h *Handler) judgeAsync(submitID int64) {
 		Score:      int64(result.Score),
 		Time:       int64(result.Time),
 		Memory:     int64(result.Memory),
+		Progress:   100,
 		OccurredAt: time.Now().UnixMilli(),
-	})
+	}, submitFinalCacheTTL)
+	return nil
+}
+
+func (h *Handler) finishJudgeSubmit(submitID int64, status int32, judgeInfo string) error {
+	res := h.db.Model(&entity.QuestionSubmit{}).
+		Where("id=? AND status=? AND isDelete=0", submitID, submitStatusRunning).
+		Updates(map[string]interface{}{"status": status, "judgeInfo": judgeInfo, "updateTime": time.Now()})
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func (h *Handler) questionList(c *gin.Context, onlyMine bool, raw bool, mine ...int64) {
@@ -1254,6 +1396,88 @@ func (h *Handler) publishSubmitEvent(userID int64, evt submitEvent) {
 		default:
 		}
 	}
+}
+
+func (h *Handler) publishSubmitRuntimeEvent(userID int64, evt submitEvent, ttl time.Duration) {
+	h.setSubmitRuntimeStatus(userID, evt, ttl)
+	h.publishSubmitEvent(userID, evt)
+}
+
+func submitRuntimeKey(submitID int64) string {
+	return fmt.Sprintf("oj:submit:runtime:%d", submitID)
+}
+
+type submitRuntimeStatus struct {
+	SubmitID   int64  `json:"submitId"`
+	QuestionID int64  `json:"questionId"`
+	UserID     int64  `json:"userId"`
+	Status     int32  `json:"status"`
+	Message    string `json:"message"`
+	Score      int64  `json:"score,omitempty"`
+	Time       int64  `json:"time,omitempty"`
+	Memory     int64  `json:"memory,omitempty"`
+	Progress   int64  `json:"progress,omitempty"`
+	OccurredAt int64  `json:"occurredAt"`
+}
+
+func (s submitRuntimeStatus) judgeInfoJSON() string {
+	payload := map[string]interface{}{
+		"message":  s.Message,
+		"score":    s.Score,
+		"time":     s.Time,
+		"memory":   s.Memory,
+		"progress": s.Progress,
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(raw)
+}
+
+func (h *Handler) setSubmitRuntimeStatus(userID int64, evt submitEvent, ttl time.Duration) {
+	if h.redisPool == nil || evt.SubmitID <= 0 || ttl <= 0 {
+		return
+	}
+	conn := h.redisPool.Get()
+	defer conn.Close()
+	status := submitRuntimeStatus{
+		SubmitID:   evt.SubmitID,
+		QuestionID: evt.QuestionID,
+		UserID:     userID,
+		Status:     evt.Status,
+		Message:    evt.Message,
+		Score:      evt.Score,
+		Time:       evt.Time,
+		Memory:     evt.Memory,
+		Progress:   evt.Progress,
+		OccurredAt: evt.OccurredAt,
+	}
+	raw, err := json.Marshal(status)
+	if err != nil {
+		return
+	}
+	_, _ = conn.Do("SETEX", submitRuntimeKey(evt.SubmitID), int(ttl.Seconds()), raw)
+}
+
+func (h *Handler) getSubmitRuntimeStatus(submitID int64) (submitRuntimeStatus, bool) {
+	if h.redisPool == nil || submitID <= 0 {
+		return submitRuntimeStatus{}, false
+	}
+	conn := h.redisPool.Get()
+	defer conn.Close()
+	raw, err := redis.Bytes(conn.Do("GET", submitRuntimeKey(submitID)))
+	if err != nil {
+		return submitRuntimeStatus{}, false
+	}
+	var status submitRuntimeStatus
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return submitRuntimeStatus{}, false
+	}
+	if status.SubmitID != submitID {
+		return submitRuntimeStatus{}, false
+	}
+	return status, true
 }
 
 func mustBindJSON(c *gin.Context, v interface{}) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Nav } from "@/components/nav";
+import { Avatar } from "@/components/avatar";
 import { getPublicUserPage } from "@/lib/api";
 import { toZhError } from "@/lib/errors";
 
@@ -32,11 +33,13 @@ export default async function UserPage({ params }: PageProps) {
       <main className="page">
         <Nav />
         <section className="card user-hero">
-          {data.avatar_url ? (
-            <img className="user-hero-avatar" src={data.avatar_url} alt={data.username} />
-          ) : (
-            <div className="user-hero-avatar user-hero-avatar-fallback">{data.username.slice(0, 1).toUpperCase()}</div>
-          )}
+          <Avatar
+            className="user-hero-avatar"
+            fallbackClassName="user-hero-avatar user-hero-avatar-fallback"
+            src={data.avatar_url}
+            name={data.username}
+            loading="eager"
+          />
           <div>
             <h1 className="detail-title" style={{ margin: 0 }}>
               {data.username}
@@ -55,11 +58,7 @@ export default async function UserPage({ params }: PageProps) {
               <article className="tweet-card" style={{ opacity: 1, transform: "none", animation: "none" }}>
                 <div className="tweet-head">
                   <div className="tweet-author-block">
-                    {post.author_avatar_url ? (
-                      <img className="tweet-avatar" src={post.author_avatar_url} alt={data.username} />
-                    ) : (
-                      <span className="tweet-avatar tweet-avatar-fallback">{data.username.slice(0, 1).toUpperCase()}</span>
-                    )}
+                    <Avatar className="tweet-avatar" fallbackClassName="tweet-avatar tweet-avatar-fallback" src={post.author_avatar_url} name={data.username} />
                     <strong className="tweet-author">{data.username}</strong>
                   </div>
                   <span className="tweet-time">{formatTime(post.publish_at || post.updated_at)}</span>
