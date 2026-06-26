@@ -1,19 +1,19 @@
 SHELL := /bin/zsh
 
-.PHONY: env-init dev-core dev-pro dev-search dev-observe dev-stream dev-gateway dev-oj dev-all stop logs ps clean api-build api-test gateway-run gateway-stop oj-dev
-.PHONY: sandbox-dev sandbox-rebuild sandbox-stop sandbox-logs oj-api-dev oj-api-restart oj-api-stop oj-api-logs
+.PHONY: env-init dev-core dev-pro dev-search dev-observe dev-stream dev-gateway dev-api web-dev dev-all stop logs ps clean api-build api-test gateway-run gateway-stop
+.PHONY: sandbox-dev sandbox-rebuild sandbox-stop sandbox-logs api-restart api-stop api-logs
 
 env-init:
 	@if [ ! -f .env ]; then cp .env.example .env; fi
 	@echo ".env ready"
 
 dev-core: env-init
-	docker compose up -d mysql redis minio
-	@echo "core services started: mysql redis minio"
+	docker compose up -d mysql redis minio rabbitmq elasticsearch oj-sandbox api
+	@echo "core services started: mysql redis minio rabbitmq elasticsearch oj-sandbox api"
 
 dev-pro: env-init
 	docker compose --profile pro up -d
-	@echo "pro profile started (includes rabbitmq + core services)"
+	@echo "pro profile started"
 
 dev-search: env-init
 	docker compose --profile search up -d
@@ -31,12 +31,15 @@ dev-gateway: env-init
 	docker compose --profile gateway up -d
 	@echo "gateway profile started (nginx on :80)"
 
-dev-oj: env-init
-	docker compose --profile oj up -d oj-sandbox oj-api
-	@echo "oj profile started (oj-api on :8121)"
+dev-api: env-init
+	docker compose up -d api
+	@echo "api started: http://127.0.0.1:8080"
+
+web-dev:
+	cd apps/web && npm run dev
 
 dev-all: env-init
-	docker compose --profile pro --profile search --profile observe --profile stream --profile gateway --profile oj up -d
+	docker compose --profile pro --profile search --profile observe --profile stream --profile gateway up -d
 	@echo "all profiles started"
 
 stop:
@@ -52,10 +55,10 @@ clean:
 	docker compose down -v
 
 api-build:
-	docker run --rm -v $(PWD)/kkg-blog-backend:/src -w /src golang:1.22-bookworm sh -lc '/usr/local/go/bin/go build ./cmd/api'
+	docker run --rm -v $(PWD)/kkg-backend:/src -w /src golang:1.23-bookworm sh -lc '/usr/local/go/bin/go build ./cmd/api'
 
 api-test:
-	docker run --rm -v $(PWD)/kkg-blog-backend:/src -w /src golang:1.22-bookworm sh -lc '/usr/local/go/bin/go test ./...'
+	docker run --rm -v $(PWD)/kkg-backend:/src -w /src golang:1.23-bookworm sh -lc '/usr/local/go/bin/go test ./...'
 
 gateway-run:
 	docker compose --profile gateway up -d nginx
@@ -64,29 +67,21 @@ gateway-run:
 gateway-stop:
 	docker rm -f kkg-gateway >/dev/null 2>&1 || true
 
-oj-dev:
-	docker compose --profile oj up -d oj-sandbox oj-api
-	@echo "oj api started: http://127.0.0.1:8121"
+api-restart:
+	docker compose restart api
 
-oj-api-dev:
-	docker compose --profile oj up -d oj-api
-	@echo "oj api only started: http://127.0.0.1:8121"
+api-stop:
+	docker compose stop api
 
-oj-api-restart:
-	docker compose restart oj-api
-
-oj-api-stop:
-	docker compose stop oj-api
-
-oj-api-logs:
-	docker compose logs -f --tail=100 oj-api
+api-logs:
+	docker compose logs -f --tail=100 api
 
 sandbox-dev:
-	docker compose --profile oj up -d oj-sandbox
+	docker compose up -d oj-sandbox
 	@echo "sandbox only started: http://127.0.0.1:8082"
 
 sandbox-rebuild:
-	docker compose --profile oj up -d --build oj-sandbox
+	docker compose up -d --build oj-sandbox
 	@echo "sandbox rebuilt and restarted"
 
 sandbox-stop:

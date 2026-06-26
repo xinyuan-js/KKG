@@ -1,9 +1,14 @@
+const AUTH_API_BASE =
+  (typeof window === "undefined" ? process.env.API_BASE_SERVER : process.env.NEXT_PUBLIC_API_BASE) || "/blog-api";
+const DEFAULT_OJ_API_BASE = `${AUTH_API_BASE}/api/v1/oj`;
 const OJ_API_BASE =
   (typeof window === "undefined"
     ? process.env.OJ_API_BASE_SERVER || process.env.NEXT_PUBLIC_OJ_API_BASE
-    : process.env.NEXT_PUBLIC_OJ_API_BASE) || "/oj-api";
-const AUTH_API_BASE =
-  (typeof window === "undefined" ? process.env.API_BASE_SERVER : process.env.NEXT_PUBLIC_API_BASE) || "/blog-api";
+    : process.env.NEXT_PUBLIC_OJ_API_BASE) || DEFAULT_OJ_API_BASE;
+
+function ojPath(path: string) {
+  return path.startsWith("/api/") ? path.slice(4) : path;
+}
 
 type Envelope<T> = {
   code: number;
@@ -135,7 +140,7 @@ export type OJFirstACRankItem = {
 };
 
 async function ojFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const doFetch = () => fetch(`${OJ_API_BASE}${path}`, {
+  const doFetch = () => fetch(`${OJ_API_BASE}${ojPath(path)}`, {
     ...init,
     credentials: "include",
     headers: {
@@ -181,7 +186,7 @@ export async function ojUploadAvatar(file: File) {
   const form = new FormData();
   form.append("biz", "user_avatar");
   form.append("file", file);
-  const doUpload = () => fetch(`${OJ_API_BASE}/api/file/upload`, {
+  const doUpload = () => fetch(`${OJ_API_BASE}${ojPath("/api/file/upload")}`, {
     method: "POST",
     credentials: "include",
     body: form
@@ -335,7 +340,7 @@ export async function ojListQuestionSubmits(input: {
 }
 
 export function createOJSubmissionEventSource() {
-  return new EventSource(`${OJ_API_BASE}/api/question/submission/events`, { withCredentials: true });
+  return new EventSource(`${OJ_API_BASE}${ojPath("/api/question/submission/events")}`, { withCredentials: true });
 }
 
 export async function ojAdminListUsers(input?: {

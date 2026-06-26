@@ -1,0 +1,9 @@
+.git
+.cache
+tmp
+backups
+*.log
+.env
+.air.toml
+Dockerfile
+docker-compose.yml

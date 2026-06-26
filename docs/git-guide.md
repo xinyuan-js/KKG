@@ -20,9 +20,9 @@ git config commit.template .gitmessage.txt
    - 统一文本换行符为 LF
    - 图片/字体按 binary 处理，避免误差异
 
-3. `kkg-oj-backend` 配置分层
-   - `config.yaml`：可提交（无密钥）
-   - `config.local.yaml`：本地私有（已忽略）
+3. `kkg-backend` 配置
+   - `.env.example`：可提交模板
+   - `.env`：本地私有（已忽略）
    - 环境变量：最高优先级
 
 ## 3. 敏感信息管理
@@ -30,7 +30,6 @@ git config commit.template .gitmessage.txt
 1. 禁止提交：
    - API Key
    - 数据库真实密码
-   - JWT 强密钥
    - RabbitMQ/Redis 生产凭据
 
 2. 推荐做法：
@@ -43,6 +42,5 @@ git config commit.template .gitmessage.txt
 1. 提交粒度：单一主题，避免“功能 + 重构 + 样式”混在一个提交。  
 2. 分支命名建议：`feat/*`、`fix/*`、`refactor/*`、`chore/*`。  
 3. 合并前至少保证：
-   - `kkg-blog-backend` 可编译
-   - `kkg-oj-backend` 可编译
+   - `kkg-backend` 可编译并通过 `go test ./...`
    - 前端页面可启动并完成基本路由跳转

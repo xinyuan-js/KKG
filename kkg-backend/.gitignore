@@ -1,0 +1,6 @@
+.env
+api
+tmp/
+backups/
+.cache/
+*.log

@@ -91,7 +91,6 @@ services:
       retries: 12
     networks:
       - blog_net
-    profiles: ["pro"]
 
   zookeeper:
     image: "${ZOOKEEPER_IMAGE:-bitnamilegacy/zookeeper:3.9}"
@@ -149,7 +148,6 @@ services:
       retries: 20
     networks:
       - blog_net
-    profiles: ["search"]
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.14.3
@@ -213,37 +211,91 @@ services:
       - blog_net
     profiles: ["observe"]
 
-  oj-api:
-    image: golang:1.23-bookworm
-    container_name: oj-api-dev
+  api:
+    build:
+      context: ./kkg-backend
+      dockerfile: Dockerfile
+    container_name: kkg-api
     restart: unless-stopped
-    working_dir: /app
-    command: sh -lc "/usr/local/go/bin/go run ./cmd/server"
-    volumes:
-      - ./kkg-oj-backend:/app
     environment:
-      SERVER_PORT: "${OJ_SERVER_PORT:-8121}"
-      MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(host.docker.internal:${MYSQL_PORT})/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
-      REDIS_ADDR: "host.docker.internal:${REDIS_PORT}"
+      APP_ENV: "${APP_ENV:-dev}"
+      SERVER_PORT: "${SERVER_PORT:-8080}"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      REDIS_DB: "${OJ_REDIS_DB:-1}"
-      JWT_SECRET: "${JWT_SECRET}"
-      BLOG_BASE_URL: "${OJ_BLOG_BASE_URL:-http://host.docker.internal:8080}"
-      RABBITMQ_ENABLED: "${OJ_RABBITMQ_ENABLED:-true}"
-      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@blog-rabbitmq:5672/"
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-blog-images}"
+      MINIO_PUBLIC_BASE_URL: "${MINIO_PUBLIC_BASE_URL:-http://127.0.0.1:9000}"
+      MINIO_USE_SSL: "${MINIO_USE_SSL:-false}"
+      ELASTICSEARCH_URL: "http://elasticsearch:9200"
+      ELASTICSEARCH_TWEET_INDEX: "${ELASTICSEARCH_TWEET_INDEX:-tweets}"
+      ELASTICSEARCH_POST_INDEX: "${ELASTICSEARCH_POST_INDEX:-posts}"
+      ELASTICSEARCH_USER_INDEX: "${ELASTICSEARCH_USER_INDEX:-users}"
+      BLOG_BASE_URL: "http://api:${SERVER_PORT:-8080}"
+      BLOG_INTERNAL_AUTH_TOKEN: "${BLOG_INTERNAL_AUTH_TOKEN:-dev-blog-internal-token}"
+      BLOG_AGENT_PASSWORD: "${OJ_BLOG_AGENT_PASSWORD:-dev-agent-password}"
+      OJ_RABBITMQ_ENABLED: "${OJ_RABBITMQ_ENABLED:-true}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/"
       RABBITMQ_JUDGE_QUEUE: "${RABBITMQ_JUDGE_QUEUE:-oj.judge}"
       JUDGE_SANDBOX_TYPE: "${JUDGE_SANDBOX_TYPE:-remote}"
       JUDGE_SANDBOX_URL: "${JUDGE_SANDBOX_URL_INTERNAL:-http://oj-sandbox:8082/executeCode}"
       JUDGE_AUTH_SECRET: "${JUDGE_AUTH_SECRET:-secretKey}"
+      AGENT_ENABLED: "${OJ_AGENT_ENABLED:-false}"
+      AGENT_BASE_URL: "${OJ_AGENT_BASE_URL:-https://api.deepseek.com/v1}"
+      AGENT_API_KEY: "${OJ_AGENT_API_KEY:-}"
+      AGENT_MODEL: "${OJ_AGENT_MODEL:-deepseek-chat}"
+      AGENT_MAX_ROUND: "${OJ_AGENT_MAX_ROUND:-3}"
+      AGENT_TEMPERATURE: "${OJ_AGENT_TEMPERATURE:-0.2}"
+      SUPER_ADMIN_USERNAME: "${SUPER_ADMIN_USERNAME:-}"
+      SUPER_ADMIN_EMAIL: "${SUPER_ADMIN_EMAIL:-}"
+      SUPER_ADMIN_PASSWORD: "${SUPER_ADMIN_PASSWORD:-}"
     depends_on:
-      - oj-sandbox
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      oj-sandbox:
+        condition: service_started
     ports:
-      - "${OJ_SERVER_PORT:-8121}:${OJ_SERVER_PORT:-8121}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     networks:
       - blog_net
-    profiles: ["oj"]
+
+  web:
+    image: node:20-bookworm
+    container_name: kkg-web
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -lc "npm install && npm run dev"
+    environment:
+      NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-/blog-api}"
+      API_BASE_SERVER: "http://api:${SERVER_PORT:-8080}"
+      NEXT_PUBLIC_OJ_API_BASE: "${NEXT_PUBLIC_OJ_API_BASE:-/blog-api/api/v1/oj}"
+      OJ_API_BASE_SERVER: "http://api:${SERVER_PORT:-8080}/api/v1/oj"
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./apps/web:/app
+      - web_node_modules:/app/node_modules
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    depends_on:
+      - api
+    networks:
+      - blog_net
 
   oj-sandbox:
     build:
@@ -285,7 +337,6 @@ services:
       - "${SANDBOX_PORT:-8082}:8082"
     networks:
       - blog_net
-    profiles: ["oj"]
 
   nginx:
     image: nginx:1.27-alpine
@@ -307,9 +358,15 @@ networks:
 
 volumes:
   mysql_data:
+    name: ${MYSQL_VOLUME_NAME:-awesome-dev_mysql-data}
   redis_data:
+    name: ${REDIS_VOLUME_NAME:-awesome-dev_redis-data}
   minio_data:
+    name: ${MINIO_VOLUME_NAME:-awesome-dev_minio-data}
   rabbitmq_data:
+    name: ${RABBITMQ_VOLUME_NAME:-awesome-dev_rabbitmq-data}
   es_data:
+    name: ${ES_VOLUME_NAME:-awesome-dev_es-data}
   prometheus_data:
   grafana_data:
+  web_node_modules:

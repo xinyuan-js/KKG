@@ -1,5 +1,5 @@
 const BLOG_BASE = process.env.SEED_BLOG_BASE || "http://127.0.0.1/blog-api";
-const OJ_BASE = process.env.SEED_OJ_BASE || "http://127.0.0.1/oj-api";
+const OJ_BASE = process.env.SEED_OJ_BASE || "http://127.0.0.1/blog-api/api/v1/oj";
 const ACCOUNT = process.env.SEED_ACCOUNT || "aimin";
 const EMAIL = process.env.SEED_EMAIL || "aimin@kkg.local";
 const PASSWORD = process.env.SEED_PASSWORD || "12345678";

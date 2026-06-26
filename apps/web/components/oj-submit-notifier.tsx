@@ -5,7 +5,8 @@ import { AUTH_CHANGED_EVENT, getUserProfile } from "@/lib/auth";
 import { ojGetLoginUser } from "@/lib/oj-api";
 import { emitTopNotice } from "@/lib/notice";
 
-const OJ_EVENT_BASE = process.env.NEXT_PUBLIC_OJ_API_BASE || "/oj-api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "/blog-api";
+const OJ_EVENT_BASE = process.env.NEXT_PUBLIC_OJ_API_BASE || `${API_BASE}/api/v1/oj`;
 
 export function OJSubmitNotifier() {
   const [enabled, setEnabled] = useState(false);
@@ -36,7 +37,7 @@ export function OJSubmitNotifier() {
         // ignore; below EventSource may still succeed if session already exists
       }
       if (closed) return;
-      es = new EventSource(`${OJ_EVENT_BASE}/api/question/submission/events`, { withCredentials: true });
+      es = new EventSource(`${OJ_EVENT_BASE}/question/submission/events`, { withCredentials: true });
       es.addEventListener("submission", (evt) => {
         try {
           const data = JSON.parse((evt as MessageEvent).data || "{}") as {

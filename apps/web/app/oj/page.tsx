@@ -38,7 +38,7 @@ export default function OJHomePage() {
         <div className="community-card oj-side-card">
           <h3 style={{ margin: 0 }}>服务说明</h3>
           <p className="meta" style={{ marginTop: 8 }}>
-            OJ 前端通过 <code>/oj-api</code> 转发到 OJ 服务，博客业务与 OJ 服务已拆分。
+            OJ 接口已统一挂载在 <code>/blog-api/api/v1/oj</code>，登录态复用统一认证 Cookie。
           </p>
         </div>
       </aside>

@@ -5,7 +5,7 @@
 ## 1. 前置条件
 
 1. 已安装 Docker Desktop（并已启动）
-2. 本机可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8121`、`8082`、`9000`、`9001`
+2. 本机可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8082`、`9000`、`9001`
 3. 已安装 `make`
 
 ## 2. 配置根环境变量 `.env`
@@ -17,7 +17,6 @@ cp .env.example .env
 
 2. 打开根目录 `.env`，修改以下必填字段：
 
-- `JWT_SECRET`：博客登录签名密钥，建议 32+ 位随机字符串
 - `MYSQL_ROOT_PASSWORD`
 - `MYSQL_PASSWORD`
 - `REDIS_PASSWORD`
@@ -28,28 +27,15 @@ cp .env.example .env
 
 3. 字段定义见 [`.env.example`](/Users/zhuojianshuo/GolandProjects/awesomeProject/.env.example)。
 
-## 3. 配置 OJ 本地覆盖文件
+## 3. 配置 OJ 与 Agent
 
-OJ 有两层配置：
+OJ 已合并到 `kkg-backend`，不再需要单独的 OJ 配置文件。需要开启 AI 题解时，编辑根目录 `.env`：
 
-1. 基础模板（可提交）  
-`kkg-oj-backend/config.yaml`
-
-2. 本地私有覆盖（不要提交）  
-`kkg-oj-backend/config.local.yaml`
-
-创建本地覆盖文件：
-```bash
-cp kkg-oj-backend/config.local.example.yaml kkg-oj-backend/config.local.yaml
-```
-
-然后编辑 [kkg-oj-backend/config.local.yaml](/Users/zhuojianshuo/GolandProjects/awesomeProject/kkg-oj-backend/config.local.yaml) 填写：
-- `rabbitmq.url`
-- `blog.agent_password`
-- `agent.api_key`（如启用 AI 题解）
-- `jwt_secret`
-
-参考模板见 [config.local.example.yaml](/Users/zhuojianshuo/GolandProjects/awesomeProject/kkg-oj-backend/config.local.example.yaml)。
+- `OJ_AGENT_ENABLED=true`
+- `OJ_AGENT_API_KEY`
+- `OJ_AGENT_BASE_URL`
+- `OJ_AGENT_MODEL`
+- `OJ_BLOG_AGENT_PASSWORD`
 
 ## 4. 启动顺序（严格按顺序）
 
@@ -58,52 +44,42 @@ cp kkg-oj-backend/config.local.example.yaml kkg-oj-backend/config.local.yaml
 make dev-core
 ```
 
-2. 启动 RabbitMQ + OJ 组件：
+2. 启动单体后端与判题沙盒：
 ```bash
-make dev-pro
-make oj-dev
+make dev-api
 ```
 
-3. 启动博客后端：
-```bash
-make api-dev
-```
-
-4. 启动前端：
+3. 启动前端：
 ```bash
 make web-dev
 ```
 
-5. 启动网关（可选但推荐）：
+4. 启动网关（可选但推荐）：
 ```bash
 make gateway-run
 ```
 
 ## 5. 验证地址
 
-1. 博客后端健康检查：`http://127.0.0.1:8080/health`
-2. OJ 后端：`http://127.0.0.1:8121`
+1. 单体后端健康检查：`http://127.0.0.1:8080/health`
+2. OJ API：`http://127.0.0.1:8080/api/v1/oj`
 3. 前端：`http://127.0.0.1:3001`
 4. 网关统一入口：`http://127.0.0.1`
 
 ## 6. 常见错误
 
-1. `invalid config: JWT_SECRET is required`  
-原因：`.env` 里还在用占位值。  
-处理：把 `.env` 的 `JWT_SECRET` 改为随机强密钥后重启 `make api-dev`。
-
-2. `dial tcp 127.0.0.1:3307 connect: ...`  
+1. `dial tcp 127.0.0.1:3307 connect: ...`  
 原因：MySQL 未启动或端口冲突。  
 处理：`make dev-core`，再用 `make ps` 检查。
 
-3. OJ Agent 发布题解失败  
-原因：`kkg-oj-backend/config.local.yaml` 缺少 `agent.api_key` 或 `blog.agent_password`。  
-处理：补齐本地配置并重启 `make oj-api-restart`。
+2. OJ Agent 发布题解失败  
+原因：`.env` 缺少 `OJ_AGENT_API_KEY` 或 `OJ_BLOG_AGENT_PASSWORD`。  
+处理：补齐本地配置并重启 `make api-restart`。
 
 ## 7. 提交前检查
 
-1. 不要提交 `.env` 与 `config.local.yaml`
-2. 仅提交 `.env.example`、`config.example.yaml` 这类模板
+1. 不要提交 `.env`
+2. 仅提交 `.env.example` 这类模板
 3. 提交前执行：
 ```bash
 git status

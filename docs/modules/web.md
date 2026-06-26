@@ -20,7 +20,7 @@
 2. OJ 区域：题目列表、题目详情、提交记录、排行  
 3. 网关转发：
    - 博客 API：`/blog-api`
-   - OJ API：`/oj-api`
+   - OJ API：`/blog-api/api/v1/oj`
 
 ## 关键交互要求（现行基线）
 
@@ -32,5 +32,5 @@
 ## 与后端契约
 
 1. 博客接口：`/api/v1/*`（经网关映射到 `/blog-api/*`）  
-2. OJ 接口：`/api/*`（经网关映射到 `/oj-api/*`）  
-3. 登录态：前端统一 token 存储和读取策略，避免模块各自维护。  
+2. OJ 接口：`/api/v1/oj/*`（经网关映射到 `/blog-api/api/v1/oj/*`）  
+3. 登录态：前端统一使用后端 Cookie + Redis Session，避免模块各自维护。  

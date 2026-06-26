@@ -11,8 +11,7 @@
     "minio",
     "rabbitmq",
     "oj-sandbox",
-    "oj-api",
-    "blog-api",
+    "api",
     "web",
     "nginx"
   ],

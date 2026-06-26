@@ -19,7 +19,7 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_PORT:-9000}
       API_BASE_SERVER: http://127.0.0.1:8080
-      OJ_API_BASE_SERVER: http://oj-api:${OJ_SERVER_PORT:-8121}
+      OJ_API_BASE_SERVER: http://api:${SERVER_PORT:-8080}/api/v1/oj
       JUDGE_SANDBOX_URL: http://oj-sandbox:8082/executeCode
     volumes:
       - ..:/workspaces/awesomeProject:cached
@@ -36,9 +36,7 @@ services:
         condition: service_healthy
       oj-sandbox:
         condition: service_started
-      oj-api:
-        condition: service_started
-      blog-api:
+      api:
         condition: service_started
       web:
         condition: service_started
@@ -156,7 +154,7 @@ services:
     networks:
       - blog_net
 
-  blog-api:
+  api:
     image: golang:1.23-bookworm
     restart: unless-stopped
     working_dir: /app
@@ -172,8 +170,19 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_PUBLIC_BASE_URL: http://127.0.0.1:${MINIO_PORT:-9000}
       ELASTICSEARCH_URL: http://elasticsearch:9200
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123456}
+      BLOG_BASE_URL: http://api:${SERVER_PORT:-8080}
+      BLOG_INTERNAL_AUTH_TOKEN: ${BLOG_INTERNAL_AUTH_TOKEN:-dev-blog-internal-token}
+      BLOG_AGENT_PASSWORD: ${OJ_BLOG_AGENT_PASSWORD:-dev-agent-password}
+      OJ_RABBITMQ_ENABLED: ${OJ_RABBITMQ_ENABLED:-true}
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-blog}:${RABBITMQ_PASSWORD:-blog123456}@rabbitmq:5672/"
+      RABBITMQ_JUDGE_QUEUE: ${RABBITMQ_JUDGE_QUEUE:-oj.judge}
+      JUDGE_SANDBOX_TYPE: ${JUDGE_SANDBOX_TYPE:-remote}
+      JUDGE_SANDBOX_URL: http://oj-sandbox:8082/executeCode
+      JUDGE_AUTH_SECRET: ${JUDGE_AUTH_SECRET:-secretKey}
     volumes:
-      - ../kkg-blog-backend:/app
+      - ../kkg-backend:/app
       - go-mod-cache:/go/pkg/mod
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
@@ -186,6 +195,10 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      oj-sandbox:
+        condition: service_started
     networks:
       - blog_net
 
@@ -196,9 +209,9 @@ services:
     command: sh -lc "npm install && npm run dev"
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/blog-api}
-      API_BASE_SERVER: http://blog-api:${SERVER_PORT:-8080}
-      NEXT_PUBLIC_OJ_API_BASE: ${NEXT_PUBLIC_OJ_API_BASE:-/oj-api}
-      OJ_API_BASE_SERVER: http://oj-api:${OJ_SERVER_PORT:-8121}
+      API_BASE_SERVER: http://api:${SERVER_PORT:-8080}
+      NEXT_PUBLIC_OJ_API_BASE: ${NEXT_PUBLIC_OJ_API_BASE:-/blog-api/api/v1/oj}
+      OJ_API_BASE_SERVER: http://api:${SERVER_PORT:-8080}/api/v1/oj
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
     volumes:
@@ -207,46 +220,7 @@ services:
     ports:
       - "${WEB_PORT:-3001}:3001"
     depends_on:
-      blog-api:
-        condition: service_started
-      oj-api:
-        condition: service_started
-    networks:
-      - blog_net
-
-  oj-api:
-    image: golang:1.23-bookworm
-    restart: unless-stopped
-    working_dir: /app
-    command: sh -lc "/usr/local/go/bin/go run ./cmd/server"
-    volumes:
-      - ../kkg-oj-backend:/app
-    environment:
-      SERVER_PORT: ${OJ_SERVER_PORT:-8121}
-      MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD:-root123456}@tcp(mysql:3306)/${MYSQL_DATABASE:-blog}?charset=utf8mb4&parseTime=True&loc=Local"
-      REDIS_ADDR: redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123456}
-      REDIS_DB: ${OJ_REDIS_DB:-1}
-      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-32-plus-char-secret}
-      BLOG_BASE_URL: http://blog-api:${SERVER_PORT:-8080}
-      BLOG_INTERNAL_AUTH_TOKEN: ${BLOG_INTERNAL_AUTH_TOKEN:-dev-blog-internal-token}
-      BLOG_AGENT_PASSWORD: ${OJ_BLOG_AGENT_PASSWORD:-dev-agent-password}
-      RABBITMQ_ENABLED: ${OJ_RABBITMQ_ENABLED:-true}
-      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-blog}:${RABBITMQ_PASSWORD:-blog123456}@rabbitmq:5672/"
-      RABBITMQ_JUDGE_QUEUE: ${RABBITMQ_JUDGE_QUEUE:-oj.judge}
-      JUDGE_SANDBOX_TYPE: ${JUDGE_SANDBOX_TYPE:-remote}
-      JUDGE_SANDBOX_URL: http://oj-sandbox:8082/executeCode
-      JUDGE_AUTH_SECRET: ${JUDGE_AUTH_SECRET:-secretKey}
-    ports:
-      - "${OJ_SERVER_PORT:-8121}:${OJ_SERVER_PORT:-8121}"
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      oj-sandbox:
+      api:
         condition: service_started
     networks:
       - blog_net

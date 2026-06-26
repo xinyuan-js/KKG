@@ -9,8 +9,7 @@
 
 ## 2. 模块文档
 - [前端（apps/web）](./modules/web.md)
-- [博客后端（kkg-blog-backend）](./modules/blog-backend.md)
-- [OJ 后端（kkg-oj-backend）](./modules/oj-backend.md)
+- [单体后端（kkg-backend）](./modules/backend.md)
 - [判题沙盒（kkg-sandbox）](./modules/sandbox.md)
 
 ## 3. 运维与启动

@@ -257,7 +257,6 @@ export async function getFeed(
   input?: { page?: number; pageSize?: number }
 ): Promise<FeedPayload> {
   const headers: HeadersInit = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
   const page = input?.page || 1;
   const pageSize = input?.pageSize || 8;
   const resp = await apiFetch(`${getAPIBase()}/api/v1/feed?type=${type}&page=${page}&page_size=${pageSize}`, {
@@ -274,7 +273,6 @@ export async function getFeed(
 
 export async function getPostEngagement(postID: number, token?: string): Promise<PostEngagement> {
   const headers: HeadersInit = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/engagement`, {
     method: "GET",
     headers,
@@ -290,7 +288,6 @@ export async function getPostEngagement(postID: number, token?: string): Promise
 export async function togglePostLike(postID: number, token: string): Promise<PostEngagement> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/like`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` }
   });
   const json = (await resp.json()) as Envelope<PostEngagement>;
   if (!resp.ok || json.code !== 0) {
@@ -302,7 +299,6 @@ export async function togglePostLike(postID: number, token: string): Promise<Pos
 export async function togglePostFavorite(postID: number, token: string): Promise<PostEngagement> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/favorite`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` }
   });
   const json = (await resp.json()) as Envelope<PostEngagement>;
   if (!resp.ok || json.code !== 0) {
@@ -339,7 +335,6 @@ export async function getMyFavorites(token: string): Promise<Post[]> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/favorites?limit=50`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -367,7 +362,6 @@ export async function adminListUsers(input: {
     `${getAPIBase()}/api/v1/admin/users?page=${page}&page_size=${pageSize}&q=${q}&role=${role}&status=${status}`,
     {
       method: "GET",
-      headers: { Authorization: `Bearer ${input.token}` },
       cache: "no-store"
     }
   );
@@ -388,7 +382,6 @@ export async function adminUpdateUserRole(input: {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
     },
     body: JSON.stringify(input)
   });
@@ -414,7 +407,6 @@ export async function adminListPosts(input: {
     `${getAPIBase()}/api/v1/admin/posts?page=${page}&page_size=${pageSize}&q=${q}&status=${status}`,
     {
       method: "GET",
-      headers: { Authorization: `Bearer ${input.token}` },
       cache: "no-store"
     }
   );
@@ -428,7 +420,6 @@ export async function adminListPosts(input: {
 export async function adminDeleteUser(input: { token: string; id: number }) {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/admin/users/${input.id}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${input.token}` }
   });
   const json = (await resp.json()) as Envelope<{ deleted: boolean }>;
   if (!resp.ok || json.code !== 0) {
@@ -448,7 +439,6 @@ export async function adminCreateAudit(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
     },
     body: JSON.stringify(input)
   });
@@ -472,7 +462,6 @@ export async function adminListAudits(input: {
     `${getAPIBase()}/api/v1/admin/audits?page=${page}&page_size=${pageSize}&action=${action}`,
     {
       method: "GET",
-      headers: { Authorization: `Bearer ${input.token}` },
       cache: "no-store"
     }
   );
@@ -516,7 +505,6 @@ export async function createPostComment(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify({
       content: input.content,
@@ -534,7 +522,6 @@ export async function getMyNotifications(token: string, limit = 50): Promise<Not
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/notifications?limit=${limit}`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -549,7 +536,6 @@ export async function markMyNotificationRead(token: string, id: number): Promise
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/notifications/${id}/read`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<{ read: boolean; id: number }>;
@@ -597,9 +583,6 @@ export async function searchAll(input: {
   params.set("q", input.q);
   params.set("limit", String(input.limit ?? 20));
   const headers: HeadersInit = {};
-  if (input.token) {
-    headers.Authorization = `Bearer ${input.token}`;
-  }
   const resp = await apiFetch(`${getAPIBase()}/api/v1/search?${params.toString()}`, {
     method: "GET",
     headers,
@@ -623,7 +606,6 @@ export async function searchSuggest(input: {
   params.set("q", input.q);
   params.set("limit", String(input.limit ?? 5));
   const headers: HeadersInit = {};
-  if (input.token) headers.Authorization = `Bearer ${input.token}`;
   const resp = await apiFetch(`${getAPIBase()}/api/v1/search/suggest?${params.toString()}`, {
     method: "GET",
     headers,
@@ -692,7 +674,6 @@ export async function createDraft(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
     },
     body: JSON.stringify(input)
   });
@@ -708,7 +689,6 @@ export async function getMyPosts(token: string): Promise<Post[]> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/posts`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -722,7 +702,6 @@ export async function getMyPosts(token: string): Promise<Post[]> {
 export async function getMyProfile(token: string): Promise<UserProfilePayload> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/profile`, {
     method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
     cache: "no-store"
   });
   const json = (await resp.json()) as Envelope<UserProfilePayload>;
@@ -740,7 +719,6 @@ export async function updateMyProfile(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify(input)
   });
@@ -757,7 +735,6 @@ export async function uploadImage(token: string, file: File): Promise<string> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/uploads/image`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     body: form
   });
@@ -776,7 +753,6 @@ export async function changeMyPassword(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify(input)
   });
@@ -790,7 +766,6 @@ export async function publishPost(token: string, postID: number): Promise<Post> 
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/publish`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<Post>;
@@ -804,7 +779,6 @@ export async function unpublishPost(token: string, postID: number): Promise<Post
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/unpublish`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<Post>;
@@ -824,7 +798,6 @@ export async function createPostDraft(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify({ from_version: fromVersion || 0, draft_note: draftNote ?? undefined })
   });
@@ -839,7 +812,6 @@ export async function getPostDetail(postID: number, token: string): Promise<Post
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -854,7 +826,6 @@ export async function getMyPostDetail(postID: number, token: string): Promise<Po
   const resp = await apiFetch(`${getAPIBase()}/api/v1/me/posts/${postID}`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -874,7 +845,6 @@ export async function updatePostMeta(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify(input)
   });
@@ -896,7 +866,6 @@ export async function saveDraft(input: {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
     },
     body: JSON.stringify({
       title: input.title,
@@ -915,7 +884,6 @@ export async function getPostDrafts(token: string, postID: number): Promise<Post
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -930,7 +898,6 @@ export async function getPostDraft(token: string, postID: number, version: numbe
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`
     },
     cache: "no-store"
   });
@@ -954,7 +921,6 @@ export async function savePostDraft(input: {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
     },
     body: JSON.stringify({
       title: input.title,
@@ -974,7 +940,6 @@ export async function publishPostDraft(token: string, postID: number, version: n
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}/publish`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<Post>;
@@ -988,7 +953,6 @@ export async function deletePostDraft(token: string, postID: number, version: nu
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}/drafts/${version}`, {
     method: "DELETE",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<{ deleted_version: number }>;
@@ -1006,7 +970,6 @@ export async function deletePost(token: string, postID: number): Promise<void> {
   const resp = await apiFetch(`${getAPIBase()}/api/v1/posts/${postID}`, {
     method: "DELETE",
     headers: {
-      Authorization: `Bearer ${token}`
     }
   });
   const json = (await resp.json()) as Envelope<{ deleted_post_id: number }>;

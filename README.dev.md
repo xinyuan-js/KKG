@@ -5,7 +5,7 @@
 ## 0. 环境要求
 
 - Docker Desktop（已启动）
-- 可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8121`、`8082`、`9000`、`9001`
+- 可用端口：`80`、`3001`、`3307`、`6379`、`8080`、`8082`、`9000`、`9001`
 
 ## 1. 配置
 
@@ -14,8 +14,8 @@ cp .env.example .env
 ```
 
 必填位置：
-- `.env`：`JWT_SECRET`、`MYSQL_PASSWORD`、`REDIS_PASSWORD`、`RABBITMQ_PASSWORD`、`MINIO_*`、`SUPER_ADMIN_PASSWORD`
-- `kkg-oj-backend/config.local.yaml`：仅在需要覆盖 OJ 私有配置时创建，例如开启 AI 题解时填写 `agent.api_key`
+- `.env`：`MYSQL_PASSWORD`、`REDIS_PASSWORD`、`RABBITMQ_PASSWORD`、`MINIO_*`、`SUPER_ADMIN_PASSWORD`
+- OJ、博客、鉴权都已合并到 `kkg-backend`，OJ 私有配置通过 `.env` 的 `OJ_*`、`AGENT_*`、`JUDGE_*` 变量控制。
 
 ## 2. 启动：Dev Container
 
@@ -26,8 +26,7 @@ cp .env.example .env
 - `minio`
 - `rabbitmq`
 - `oj-sandbox`
-- `oj-api`
-- `blog-api`
+- `api`（运行 `kkg-backend` 单体后端）
 - `web`
 - `nginx`
 
@@ -49,11 +48,11 @@ docker compose --env-file .env -f .devcontainer/docker-compose.yml up -d --build
 
 - 前端：`http://127.0.0.1:3001`
 - 网关：`http://127.0.0.1`
-- 博客后端健康检查：`http://127.0.0.1:8080/health`
+- 单体后端健康检查：`http://127.0.0.1:8080/health`
+- OJ API：`http://127.0.0.1:8080/api/v1/oj/*`
 
 ## 4. 故障排查
 
-- `invalid config: JWT_SECRET is required`：`.env` 仍是占位值，修改后重建 Dev Container。
 - `dial tcp mysql:3306`：MySQL 未就绪，检查 Dev Container 的 compose 服务状态。
 
 ## 5. 详细文档
