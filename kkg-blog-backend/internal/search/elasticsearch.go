@@ -74,6 +74,34 @@ func (c *Client) Delete(ctx context.Context, index string, id string) error {
 	return nil
 }
 
+func (c *Client) CreateIndex(ctx context.Context, index string, body interface{}) error {
+	rawBody, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req := esapi.IndicesCreateRequest{
+		Index: index,
+		Body:  bytes.NewReader(rawBody),
+	}
+	resp, err := req.Do(ctx, c.client)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 400 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if strings.Contains(string(raw), "resource_already_exists_exception") {
+			return nil
+		}
+		return fmt.Errorf("elasticsearch create index failed: status=%s body=%s", resp.Status(), string(raw))
+	}
+	if resp.IsError() {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("elasticsearch create index failed: status=%s body=%s", resp.Status(), string(raw))
+	}
+	return nil
+}
+
 type SearchResult struct {
 	ID       string          `json:"id"`
 	Score    float64         `json:"score"`

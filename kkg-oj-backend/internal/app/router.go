@@ -32,6 +32,7 @@ func RegisterRoutes(r *gin.Engine, h *handler.Handler) {
 	{
 		question.POST("/add", authRequired, h.QuestionAdd)
 		question.POST("/delete", authRequired, h.QuestionDelete)
+		question.POST("/restore", authRequired, h.QuestionRestore)
 		question.POST("/update", authRequired, h.QuestionUpdate)
 		question.GET("/get", authRequired, h.QuestionGet)
 		question.GET("/get/vo", h.QuestionGetVO)

@@ -132,6 +132,30 @@ services:
     networks:
       - blog_net
 
+  elasticsearch:
+    build:
+      context: ./elasticsearch
+      args:
+        ES_VERSION: 8.14.3
+    image: awesome-elasticsearch-ik:8.14.3
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 15s
+      timeout: 8s
+      retries: 20
+    networks:
+      - blog_net
+
   blog-api:
     image: golang:1.23-bookworm
     restart: unless-stopped
@@ -159,6 +183,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     networks:
       - blog_net
@@ -203,6 +229,7 @@ services:
       REDIS_DB: ${OJ_REDIS_DB:-1}
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-32-plus-char-secret}
       BLOG_BASE_URL: http://blog-api:${SERVER_PORT:-8080}
+      BLOG_INTERNAL_AUTH_TOKEN: ${BLOG_INTERNAL_AUTH_TOKEN:-dev-blog-internal-token}
       BLOG_AGENT_PASSWORD: ${OJ_BLOG_AGENT_PASSWORD:-dev-agent-password}
       RABBITMQ_ENABLED: ${OJ_RABBITMQ_ENABLED:-true}
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-blog}:${RABBITMQ_PASSWORD:-blog123456}@rabbitmq:5672/"
@@ -285,3 +312,4 @@ volumes:
   redis-data:
   minio-data:
   rabbitmq-data:
+  es-data:

@@ -113,7 +113,7 @@ func (r *UserRepository) ListForAdmin(keyword string, role string, statusFilter 
 		q = q.Where("status = 1")
 	case "disabled":
 		q = q.Where("status = 0")
-	case "deleted":
+	case "hidden", "deleted":
 		q = q.Where("status = -1")
 	}
 	var total int64

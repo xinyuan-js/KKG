@@ -43,4 +43,3 @@ func (r *AdminAuditRepository) List(page int, pageSize int, action string) ([]mo
 		Find(&rows).Error
 	return rows, total, err
 }
-

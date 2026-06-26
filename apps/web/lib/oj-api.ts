@@ -52,6 +52,7 @@ export type OJQuestionVO = {
   thumbNum: number;
   favourNum: number;
   userId: number;
+  isDelete?: number;
   createTime?: string;
   updateTime?: string;
 };
@@ -217,6 +218,33 @@ export async function ojListQuestions(input: {
   });
 }
 
+function normalizeOJQuestion(q: OJQuestionVO & { tags: string[] | string }): OJQuestionVO {
+  if (typeof q.tags === "string") {
+    try {
+      return { ...q, tags: JSON.parse(q.tags) as string[] };
+    } catch {
+      return { ...q, tags: q.tags ? [q.tags] : [] };
+    }
+  }
+  return q;
+}
+
+export async function ojAdminListQuestions(input?: {
+  current?: number;
+  pageSize?: number;
+  userId?: number;
+  title?: string;
+  searchText?: string;
+  tags?: string[];
+  status?: "active" | "hidden" | "all" | "";
+}) {
+  const page = await ojFetch<OJPageResult<OJQuestionVO>>("/api/question/list/page", {
+    method: "POST",
+    body: JSON.stringify({ current: 1, pageSize: 10, status: "all", ...(input || {}) })
+  });
+  return { ...page, records: (page.records || []).map(normalizeOJQuestion) };
+}
+
 export async function ojMyQuestions(input?: { current?: number; pageSize?: number }) {
   return ojFetch<OJPageResult<OJQuestionVO>>("/api/question/my/list/page/vo", {
     method: "POST",
@@ -342,6 +370,13 @@ export async function ojAdminDeleteUser(id: number) {
 
 export async function ojDeleteQuestion(id: number) {
   return ojFetch<boolean>("/api/question/delete", {
+    method: "POST",
+    body: JSON.stringify({ id })
+  });
+}
+
+export async function ojRestoreQuestion(id: number) {
+  return ojFetch<boolean>("/api/question/restore", {
     method: "POST",
     body: JSON.stringify({ id })
   });

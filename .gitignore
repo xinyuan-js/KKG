@@ -14,7 +14,7 @@
 
 # Temporary
 tmp/
-api
+/api
 apps/web/node_modules/
 apps/web/.next/
 .cache/
@@ -26,6 +26,7 @@ kkg-blog-backend/tmp/
 **/bin/
 **/dist/
 **/*.test
+**/.gocache/
 
 # Frontend artifacts
 apps/web/.turbo/

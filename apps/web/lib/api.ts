@@ -66,6 +66,9 @@ export type Post = {
 export type FeedPayload = {
   type: "hot" | "latest" | "recommend";
   items: Post[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type RankingPayload = {
@@ -248,10 +251,16 @@ export async function getPublishedPosts(): Promise<Post[]> {
   return json.data || [];
 }
 
-export async function getFeed(type: "hot" | "latest" | "recommend", token?: string): Promise<Post[]> {
+export async function getFeed(
+  type: "hot" | "latest" | "recommend",
+  token?: string,
+  input?: { page?: number; pageSize?: number }
+): Promise<FeedPayload> {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await apiFetch(`${getAPIBase()}/api/v1/feed?type=${type}&limit=30`, {
+  const page = input?.page || 1;
+  const pageSize = input?.pageSize || 8;
+  const resp = await apiFetch(`${getAPIBase()}/api/v1/feed?type=${type}&page=${page}&page_size=${pageSize}`, {
     method: "GET",
     headers,
     cache: "no-store"
@@ -260,7 +269,7 @@ export async function getFeed(type: "hot" | "latest" | "recommend", token?: stri
   if (!resp.ok || json.code !== 0) {
     throw new Error(json.message || "get feed failed");
   }
-  return json.data?.items || [];
+  return json.data || { type, items: [], total: 0, page, page_size: pageSize };
 }
 
 export async function getPostEngagement(postID: number, token?: string): Promise<PostEngagement> {

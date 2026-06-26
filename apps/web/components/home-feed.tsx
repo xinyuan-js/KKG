@@ -6,7 +6,7 @@ import { toZhError } from "@/lib/errors";
 import { Pager } from "@/components/pager";
 import { Avatar } from "@/components/avatar";
 import Link from "next/link";
-import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 
 type FeedType = "hot" | "latest" | "recommend";
 
@@ -17,23 +17,32 @@ export function HomeFeed() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
-  const pageCount = Math.max(1, Math.ceil(posts.length / pageSize));
-  const pageItems = useMemo(() => posts.slice((page - 1) * pageSize, page * pageSize), [posts, page]);
+  const [total, setTotal] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    void loadFeed(feedType);
-  }, [feedType]);
+    void loadFeed(feedType, page);
+  }, [feedType, page]);
 
-  async function loadFeed(type: FeedType) {
+  function switchFeed(type: FeedType) {
+    if (type === feedType) return;
+    setPage(1);
+    setPosts([]);
+    setTotal(0);
+    setFeedType(type);
+  }
+
+  async function loadFeed(type: FeedType, current: number) {
     setLoading(true);
     setError("");
-    setPage(1);
     try {
-      const data = await getFeed(type, getAccessToken() || undefined);
-      setPosts(data);
+      const data = await getFeed(type, getAccessToken() || undefined, { page: current, pageSize });
+      setPosts(data.items || []);
+      setTotal(data.total || 0);
     } catch (err) {
       setError(toZhError(err, "加载推文流失败"));
       setPosts([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -46,16 +55,16 @@ export function HomeFeed() {
         data-active={feedType === "hot" ? 0 : feedType === "latest" ? 1 : 2}
       >
         <span className="seg-switch-thumb" aria-hidden="true" />
-        <button type="button" className={feedType === "hot" ? "" : "ghost"} onClick={() => setFeedType("hot")}>
+        <button type="button" className={feedType === "hot" ? "" : "ghost"} onClick={() => switchFeed("hot")}>
           热门
         </button>
-        <button type="button" className={feedType === "latest" ? "" : "ghost"} onClick={() => setFeedType("latest")}>
+        <button type="button" className={feedType === "latest" ? "" : "ghost"} onClick={() => switchFeed("latest")}>
           最新
         </button>
         <button
           type="button"
           className={feedType === "recommend" ? "" : "ghost"}
-          onClick={() => setFeedType("recommend")}
+          onClick={() => switchFeed("recommend")}
         >
           推荐
         </button>
@@ -64,14 +73,14 @@ export function HomeFeed() {
       {error ? <p className="error">{error}</p> : null}
       {!loading && posts.length === 0 ? <div className="card">暂无内容</div> : null}
       <section className="feed">
-        {pageItems.map((post, index) => {
+        {posts.map((post, index) => {
           const cover = extractFirstImage(post.raw_content);
           const authorName = post.author_name || `u/${post.slug.split("-u")[0]}`;
           return (
             <article
               key={post.id}
               className="tweet-card"
-              style={{ ["--tweet-index" as string]: (page - 1) * pageSize + index } as CSSProperties}
+              style={{ ["--tweet-index" as string]: index } as CSSProperties}
             >
               <Link href={`/posts/${post.id}`} className="tweet-card-stretch" aria-label={`查看推文 ${post.title}`} />
               <div className="tweet-card-content">
@@ -116,7 +125,7 @@ export function HomeFeed() {
           );
         })}
       </section>
-      {!loading && posts.length > pageSize ? <Pager page={page} total={pageCount} onChange={setPage} /> : null}
+      {!loading && total > pageSize ? <Pager page={page} total={pageCount} onChange={setPage} /> : null}
     </section>
   );
 }

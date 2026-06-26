@@ -16,10 +16,11 @@ import { getAccessToken, getUserProfile } from "@/lib/auth";
 import { toZhError } from "@/lib/errors";
 import {
   ojAdminListUsers,
+  ojAdminListQuestions,
   ojAdminUpdateUser,
   ojDeleteQuestion,
   ojListQuestionSubmits,
-  ojListQuestions,
+  ojRestoreQuestion,
   type OJQuestionSubmitVO,
   type OJQuestionVO,
   type OJUserVO
@@ -34,6 +35,7 @@ export default function AdminPage() {
   const [hydrated, setHydrated] = useState(false);
   const role = me?.role || "user";
   const isAdmin = role === "admin" || role === "super_admin";
+  const isSuperAdmin = role === "super_admin";
 
   const [tab, setTab] = useState<Tab>("users");
   const [busy, setBusy] = useState(false);
@@ -58,6 +60,7 @@ export default function AdminPage() {
   const [questions, setQuestions] = useState<OJQuestionVO[]>([]);
   const [qPage, setQPage] = useState(1);
   const [qTotal, setQTotal] = useState(0);
+  const [qStatus, setQStatus] = useState<"all" | "active" | "hidden">("all");
 
   const [submits, setSubmits] = useState<OJQuestionSubmitVO[]>([]);
   const [sPage, setSPage] = useState(1);
@@ -134,7 +137,7 @@ export default function AdminPage() {
         setPosts(data.items || []);
         setPostsTotal(data.total || 0);
       } else if (tab === "questions") {
-        const data = await ojListQuestions({ current: qPage, pageSize: 10 });
+        const data = await ojAdminListQuestions({ current: qPage, pageSize: 10, status: qStatus });
         setQuestions(data.records || []);
         setQTotal(data.total || 0);
       } else if (tab === "submits") {
@@ -205,13 +208,16 @@ export default function AdminPage() {
               <option value="">全部状态</option>
               <option value="active">正常</option>
               <option value="disabled">已禁用</option>
-              <option value="deleted">已删除</option>
+              <option value="hidden">已隐藏</option>
             </select>
             <button type="button" onClick={() => void reload()}>查询</button>
           </div>
           {users.map((u) => {
             const ojUser = ojUsers.find((x) => x.userName === u.username);
             const isSelf = me?.id === u.id;
+            const canChangeRole = isSuperAdmin && !isSelf;
+            const canToggleStatus = !isSelf && u.status !== -1 && u.role !== "super_admin";
+            const canDeleteOrRestore = isSuperAdmin && !isSelf && u.role !== "super_admin";
             return (
               <article key={u.id} className="tweet-card">
                 <div className="tweet-card-content tweet-search-content">
@@ -222,16 +228,16 @@ export default function AdminPage() {
                   <div className="toolbar-row">
                     <span className="tweet-tag">Blog: {u.role}</span>
                     <span className="tweet-tag soft">OJ: {ojUser?.userRole || "未知"}</span>
-                    <span className="tweet-tag soft">状态: {u.status === 1 ? "正常" : u.status === 0 ? "已禁用" : "已删除"}</span>
+                    <span className="tweet-tag soft">状态: {u.status === 1 ? "正常" : u.status === 0 ? "已禁用" : "已隐藏"}</span>
                   </div>
                   <div className="toolbar-row">
-                    <select defaultValue={u.role} disabled={isSelf} onChange={async (e) => {
+                    <select defaultValue={u.role} disabled={!canChangeRole} onChange={async (e) => {
                       try {
                         const token = getAccessToken();
                         if (!token) throw new Error("请先登录");
                         const nextRole = e.target.value as "user" | "admin" | "super_admin";
-                        await adminUpdateUserRole({ token, id: u.id, role: nextRole, status: u.status as -1 | 0 | 1 });
                         if (ojUser) await ojAdminUpdateUser({ id: ojUser.id, userRole: nextRole });
+                        await adminUpdateUserRole({ token, id: u.id, role: nextRole, status: u.status as -1 | 0 | 1 });
                         await writeAudit("user_role_update", "user", u.id, `${u.username}: ${u.role} -> ${nextRole}`);
                         setOk(`已更新 ${u.username} 角色为 ${nextRole}`);
                         void reload();
@@ -243,7 +249,7 @@ export default function AdminPage() {
                       <option value="admin">admin</option>
                       <option value="super_admin">super_admin</option>
                     </select>
-                    <button type="button" className="ghost" disabled={isSelf || u.status === -1} onClick={async () => {
+                    <button type="button" className="ghost" disabled={!canToggleStatus} onClick={async () => {
                       try {
                         const token = getAccessToken();
                         if (!token) throw new Error("请先登录");
@@ -256,19 +262,19 @@ export default function AdminPage() {
                         setErr(toZhError(e2, "更新禁用状态失败"));
                       }
                     }}>{u.status === 0 ? "启用" : "禁用"}</button>
-                    <button type="button" className="ghost" disabled={isSelf} onClick={async () => {
+                    <button type="button" className="ghost" disabled={!canDeleteOrRestore} onClick={async () => {
                       try {
                         const token = getAccessToken();
                         if (!token) throw new Error("请先登录");
                         const ns = u.status === -1 ? 1 : -1;
                         await adminUpdateUserRole({ token, id: u.id, role: u.role, status: ns as -1 | 0 | 1 });
-                        await writeAudit("user_delete_soft_update", "user", u.id, `${u.username}: ${u.status} -> ${ns}`);
-                        setOk(`已${ns === 1 ? "恢复" : "删除"} ${u.username}`);
+                        await writeAudit("user_hide_update", "user", u.id, `${u.username}: ${u.status} -> ${ns}`);
+                        setOk(`已${ns === 1 ? "恢复显示" : "隐藏"} ${u.username}`);
                         void reload();
                       } catch (e2) {
-                        setErr(toZhError(e2, "更新删除状态失败"));
+                        setErr(toZhError(e2, "更新隐藏状态失败"));
                       }
-                    }}>{u.status === -1 ? "恢复" : "删除"}</button>
+                    }}>{u.status === -1 ? "恢复显示" : "隐藏"}</button>
                   </div>
                 </div>
               </article>
@@ -286,6 +292,7 @@ export default function AdminPage() {
               <option value="">全部状态</option>
               <option value="published">published</option>
               <option value="draft">draft</option>
+              <option value="hidden">hidden</option>
             </select>
             <button type="button" onClick={() => void reload()}>查询</button>
           </div>
@@ -293,13 +300,13 @@ export default function AdminPage() {
             <article key={p.id} className="tweet-card">
                 <div className="tweet-card-content tweet-search-content">
                 <div className="tweet-head">
-                  <Link href={`/posts/${p.id}`} className="tweet-link">{p.title}</Link>
+                  {p.status === "hidden" ? <strong>{p.title}</strong> : <Link href={`/posts/${p.id}`} className="tweet-link">{p.title}</Link>}
                   <span className="meta">{p.author_name || `u/${p.author_id}`}</span>
                 </div>
                 <div className="toolbar-row">
                   <span className="tweet-tag">{p.status}</span>
                   <span className="tweet-tag soft">{p.slug}</span>
-                  <button type="button" className="ghost" onClick={async () => {
+                  <button type="button" className="ghost" disabled={p.status === "hidden"} onClick={async () => {
                     if (!window.confirm(`确认隐藏推文 #${p.id} 吗？`)) return;
                     try {
                       const token = getAccessToken();
@@ -311,7 +318,7 @@ export default function AdminPage() {
                     } catch (e) {
                       setErr(toZhError(e, "隐藏推文失败"));
                     }
-                  }}>隐藏</button>
+                  }}>{p.status === "hidden" ? "已隐藏" : "隐藏"}</button>
                 </div>
               </div>
             </article>
@@ -322,16 +329,36 @@ export default function AdminPage() {
 
       {tab === "questions" ? (
         <section className="card section-gap">
+          <div className="toolbar-row">
+            <select value={qStatus} onChange={(e) => setQStatus(e.target.value as "all" | "active" | "hidden")}>
+              <option value="all">全部状态</option>
+              <option value="active">显示中</option>
+              <option value="hidden">已隐藏</option>
+            </select>
+            <button type="button" onClick={() => void reload()}>查询</button>
+          </div>
           {questions.map((q) => (
             <article key={q.id} className="tweet-card">
                 <div className="tweet-card-content tweet-search-content">
                 <div className="tweet-head">
-                  <Link href={`/oj/questions/${q.id}`} className="tweet-link">{q.title}</Link>
+                  {q.isDelete === 1 ? <strong>{q.title}</strong> : <Link href={`/oj/questions/${q.id}`} className="tweet-link">{q.title}</Link>}
                   <span className="meta">通过 {q.acceptedNum}/{q.submitNum}</span>
                 </div>
                 <div className="toolbar-row">
                   <span className="tweet-tag soft">{(q.tags || []).join(", ") || "无标签"}</span>
+                  <span className="tweet-tag">{q.isDelete === 1 ? "已隐藏" : "显示中"}</span>
                   <button type="button" className="ghost" onClick={async () => {
+                    if (q.isDelete === 1) {
+                      try {
+                        await ojRestoreQuestion(q.id);
+                        await writeAudit("question_restore", "question", q.id, `restore ${q.title}`);
+                        setOk(`已恢复题目 #${q.id}`);
+                        void reload();
+                      } catch (e) {
+                        setErr(toZhError(e, "恢复题目失败"));
+                      }
+                      return;
+                    }
                     if (!window.confirm(`确认隐藏题目 #${q.id} 吗？`)) return;
                     try {
                       await ojDeleteQuestion(q.id);
@@ -341,7 +368,7 @@ export default function AdminPage() {
                     } catch (e) {
                       setErr(toZhError(e, "隐藏题目失败"));
                     }
-                  }}>隐藏</button>
+                  }}>{q.isDelete === 1 ? "恢复显示" : "隐藏"}</button>
                 </div>
               </div>
             </article>
